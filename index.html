@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="保養助手">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>現場保養助手（示範版）</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:rgba(0,0,0,0)}
+html,body{margin:0;padding:0;background:#eef1f5;color:#1d2733;font-family:-apple-system,"PingFang TC","Heiti TC","Microsoft JhengHei",sans-serif;font-size:16px}
+header{background:#123a5c;color:#fff;padding:10px 14px;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center}
+header h1{font-size:19px;margin:0;-webkit-flex:1;flex:1;font-weight:600}
+header .tag{font-size:12px;background:#f0b429;color:#3a2a00;border-radius:4px;padding:2px 6px;margin-left:8px}
+nav{display:-webkit-flex;display:flex;background:#fff;border-bottom:1px solid #d5dbe3;overflow-x:auto;-webkit-overflow-scrolling:touch}
+nav a{-webkit-flex:1 0 auto;flex:1 0 auto;text-align:center;padding:12px 10px;color:#4a5866;text-decoration:none;font-size:15px;border-bottom:3px solid transparent;white-space:nowrap}
+nav a.on{color:#123a5c;border-bottom-color:#123a5c;font-weight:600}
+main{padding:12px;max-width:1100px;margin:0 auto}
+.panel{background:#fff;border-radius:10px;padding:12px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.row{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;-webkit-align-items:center;align-items:center;margin:-4px}
+.row>*{margin:4px}
+.grow{-webkit-flex:1;flex:1;min-width:160px}
+select,input[type=text],input[type=search],textarea{font-size:16px;padding:8px;border:1px solid #c3ccd6;border-radius:6px;background:#fff;color:#1d2733;font-family:inherit}
+textarea{width:100%;min-height:150px;font-family:Menlo,Consolas,monospace;font-size:13px}
+button,.btn{font-size:15px;padding:9px 14px;border:0;border-radius:6px;background:#123a5c;color:#fff;cursor:pointer;text-decoration:none;display:inline-block;font-family:inherit}
+button.sub,.btn.sub{background:#e3e8ee;color:#1d2733}
+button.ok{background:#1f8a4c}
+button.small{padding:6px 10px;font-size:13px}
+.stats{display:-webkit-flex;display:flex;margin:-4px}
+.stat{-webkit-flex:1;flex:1;margin:4px;border-radius:8px;padding:10px;text-align:center;color:#fff}
+.stat b{display:block;font-size:26px}
+.stat span{font-size:13px}
+.s-over{background:#c0392b}.s-soon{background:#e67e22}.s-month{background:#c9a400}.s-ok{background:#2e8b57}
+.badge{display:inline-block;font-size:12px;padding:2px 7px;border-radius:10px;color:#fff;vertical-align:middle}
+.site{border:1px solid #dde3ea;border-radius:8px;padding:10px;margin-bottom:10px;background:#fff}
+.site h3{margin:0 0 4px 0;font-size:17px}
+.site .meta{font-size:13px;color:#5d6b79}
+.dev{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;padding:7px 0;border-top:1px dashed #e2e7ec;font-size:14px}
+.dev .nm{-webkit-flex:1;flex:1}
+.dev .nm small{color:#6b7885}
+.muted{color:#6b7885;font-size:13px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{border-bottom:1px solid #e3e8ee;padding:7px 6px;text-align:left;vertical-align:top}
+th{background:#f4f6f9;font-weight:600}
+.map{width:100%;background:#f7fafc;border:1px solid #dde3ea;border-radius:8px}
+.legend span{margin-right:10px;font-size:13px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:5px;margin-right:4px;vertical-align:middle}
+.cols{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;margin:-6px}
+.cols>.c{-webkit-flex:1 1 420px;flex:1 1 420px;margin:6px;min-width:0}
+.note{background:#fff8e1;border-left:4px solid #f0b429;padding:8px 10px;font-size:13px;border-radius:4px;margin-bottom:10px}
+.hide{display:none}
+.chk{width:20px;height:20px;vertical-align:middle}
+.step{display:-webkit-flex;display:flex;padding:8px 0;border-bottom:1px solid #e9edf1}
+.step .n{width:30px;height:30px;border-radius:15px;background:#123a5c;color:#fff;text-align:center;line-height:30px;font-weight:600;margin-right:10px;-webkit-flex:0 0 30px;flex:0 0 30px}
+.step .b{-webkit-flex:1;flex:1}
+#modal{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:10;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#modal .box{background:#fff;max-width:640px;margin:40px auto;border-radius:10px;padding:16px}
+h2{font-size:18px;margin:0 0 10px 0}
+</style>
+</head>
+<body>
+<header><h1>現場保養助手</h1><span class="tag">示範資料</span></header>
+<nav id="nav">
+  <a href="#" data-tab="near" class="on">附近待保養</a>
+  <a href="#" data-tab="route">今日路線</a>
+  <a href="#" data-tab="parts">車上備料</a>
+  <a href="#" data-tab="catalog">產品線查詢</a>
+  <a href="#" data-tab="fix">故障排除</a>
+  <a href="#" data-tab="data">客戶資料</a>
+</nav>
+<main>
+
+<!-- 附近待保養 -->
+<section id="tab-near">
+  <div class="panel">
+    <div class="row">
+      <button id="btnGeo">📍 使用目前位置</button>
+      <span class="muted">或選出發據點：</span>
+      <select id="selBase" class="grow"></select>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <span>半徑</span>
+      <select id="selRadius"><option>3</option><option selected>5</option><option>8</option><option>12</option><option>20</option><option>40</option></select><span>公里</span>
+      <span>顯示</span>
+      <select id="selShow"><option value="due" selected>30 天內要保養＋逾期</option><option value="over">只看逾期</option><option value="all">全部設備</option></select>
+      <span id="geoMsg" class="muted"></span>
+    </div>
+  </div>
+  <div class="stats" id="nearStats"></div>
+  <div class="cols" style="margin-top:8px">
+    <div class="c"><div class="panel"><h2>地圖（以出發點為中心）</h2><div id="nearMap"></div>
+      <div class="legend" style="margin-top:6px"><span><i class="dot s-over"></i>有逾期</span><span><i class="dot s-soon"></i>14 天內</span><span><i class="dot s-month"></i>30 天內</span><span><i class="dot s-ok"></i>正常</span></div></div></div>
+    <div class="c"><div class="panel"><div class="row"><h2 class="grow" style="margin:0">附近客戶（由近到遠）</h2><button class="small" id="btnToRoute">排成今日路線 →</button></div><div id="nearList" style="margin-top:8px"></div></div></div>
+  </div>
+</section>
+
+<!-- 今日路線 -->
+<section id="tab-route" class="hide">
+  <div class="panel">
+    <div class="row"><h2 class="grow" style="margin:0">今日路線</h2>
+      <span>一天工時</span><select id="selHours"><option>6</option><option selected>8</option><option>10</option></select><span>小時</span>
+      <button id="btnRoute">重新排程</button></div>
+    <p class="muted">從出發點用「最近的下一站」排序，距離＝直線 × 1.3 估算市區道路，車速 25 km/h，每台保養約 40 分鐘。超過工時的站會排到明天。</p>
+  </div>
+  <div class="stats" id="routeStats"></div>
+  <div class="panel" style="margin-top:8px"><div id="routeList"></div>
+    <div class="row" style="margin-top:8px"><a class="btn" id="btnGmaps" target="_blank" href="#">用 Google 地圖開啟整條路線</a></div></div>
+</section>
+
+<!-- 車上備料 -->
+<section id="tab-parts" class="hide">
+  <div class="panel">
+    <h2>車上備料清單（依今日路線自動算）</h2>
+    <div class="note">保養套件內容為<b>示範用假設</b>，到職後換成原廠 PM Kit 料號與數量。</div>
+    <div id="partsList"></div>
+  </div>
+</section>
+
+<!-- 產品線 -->
+<section id="tab-catalog" class="hide">
+  <div class="panel">
+    <div class="row"><input type="search" id="catQ" class="grow" placeholder="搜尋品牌、機型、檢測項目（例：A1c、尿液、PCT）"><select id="catCat"></select></div>
+    <p class="muted">機型與許可證字號來自<b>衛福部食藥署公開資料集</b>（申請商：醫兆股份有限公司），2026-11-23 下載。VIDAS 由原廠台灣分公司持證、醫兆經銷服務（醫兆官網）。保養週期為示範假設。</p>
+  </div>
+  <div id="catList"></div>
+</section>
+
+<!-- 故障排除 -->
+<section id="tab-fix" class="hide">
+  <div class="panel">
+    <h2>故障排除助手</h2>
+    <div class="row"><select id="fixModel" class="grow"></select></div>
+    <div class="row" style="margin-top:6px"><input type="text" id="fixQ" class="grow" placeholder="輸入客戶描述，例如：壓力一直跳高、結果偏低、讀不到條碼"><button id="btnFix">查詢</button></div>
+    <div class="note" style="margin-top:8px">目前是<b>通用檢查方向</b>（依儀器原理整理），實際步驟一律以原廠 Service Manual 為準。<br>正式版：把原廠手冊放進公司內部知識庫，AI 只根據手冊回答並附頁碼；可拍螢幕錯誤碼或機器內部照片查詢；每次修好存成案例供全組共用。</div>
+    <div id="fixOut"></div>
+  </div>
+</section>
+
+<!-- 客戶資料 -->
+<section id="tab-data" class="hide">
+  <div class="panel">
+    <h2>客戶與設備資料</h2>
+    <p id="dataSummary"></p>
+    <div class="note">目前是<b>系統產生的虛構示範據點</b>（示範醫院、示範診所…），位置只取各行政區大概位置。到職後把公司的設備清單（Excel 另存 CSV）貼到下面匯入，就會換成真實資料。資料只存在這台裝置。</div>
+    <p class="muted">CSV 欄位（第一列為標題）：客戶名稱,類型,區域,緯度,經度,機型代碼,序號,上次保養日(YYYY-MM-DD)<br>機型代碼見「產品線查詢」每張卡右上角。</p>
+    <textarea id="csvBox" placeholder="客戶名稱,類型,區域,緯度,經度,機型代碼,序號,上次保養日"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button id="btnImport">匯入貼上的資料</button>
+      <button class="sub" id="btnExport">匯出目前資料到上面框框</button>
+      <button class="sub" id="btnSample">填入範例格式</button>
+      <button class="sub" id="btnReset">恢復示範資料</button>
+    </div>
+    <p id="importMsg" class="muted"></p>
+  </div>
+</section>
+</main>
+
+<div id="modal" class="hide"><div class="box" id="modalBox"></div></div>
+
+<script>
+(function(){
+'use strict';
+/* ---------- 產品線（食藥署許可證，申請商：醫兆股份有限公司） ---------- */
+var CATS=['尿液分析','糖化血色素','免疫分析','滲透壓','血液學','ELISA'];
+var MODELS=[
+ {id:'AX4060',brand:'ARKRAY 愛科來',model:'AUTION MAX AX-4060',cat:'尿液分析',type:'全自動尿液分析儀',lic:'衛部醫器輸壹登字第016101號',principle:'試紙條反射光度法；含自動送樣、比重、色調',pm:6,kit:['蠕動泵管組','吸樣針','清洗液','試紙收集盒','光學校正條'],hours:1.0},
+ {id:'AX4030',brand:'ARKRAY 愛科來',model:'AUTION MAX AX-4030',cat:'尿液分析',type:'全自動尿液分析儀',lic:'衛部醫器輸壹登字第008772號',principle:'試紙條反射光度法',pm:6,kit:['蠕動泵管組','吸樣針','清洗液','光學校正條'],hours:0.8},
+ {id:'AE4020',brand:'ARKRAY 愛科來',model:'AUTION ELEVEN AE-4020',cat:'尿液分析',type:'半自動尿液分析儀',lic:'衛部醫器輸壹登字第008773號',principle:'試紙條反射光度法（桌上型）',pm:12,kit:['試紙托盤','光學校正條'],hours:0.5},
+ {id:'AE4070',brand:'ARKRAY 愛科來',model:'AUTION iDaten AE-4070',cat:'尿液分析',type:'半自動尿液分析儀',lic:'衛部醫器輸壹登字第a00351號',principle:'試紙條反射光度法（桌上型）',pm:12,kit:['試紙托盤','光學校正條'],hours:0.5},
+ {id:'AJET',brand:'ARKRAY 愛科來',model:'AUTION JET',cat:'尿液分析',type:'自動尿液分析儀',lic:'衛部醫器輸壹登字第009995號',principle:'試紙條反射光度法',pm:6,kit:['蠕動泵管組','吸樣針','清洗液'],hours:0.8},
+ {id:'PU4010',brand:'ARKRAY 愛科來',model:'PocketChem UA PU-4010',cat:'尿液分析',type:'攜帶型尿液分析儀',lic:'衛部醫器輸壹登字第008771號',principle:'試紙條反射光度法（手持）',pm:12,kit:['光學校正條'],hours:0.3},
+ {id:'AEYE',brand:'ARKRAY 愛科來',model:'AUTION EYE',cat:'尿液分析',type:'尿液沉渣分析系統',lic:'衛部醫器輸字第035675號',principle:'流動式影像擷取＋影像辨識分類沉渣',pm:6,kit:['流動槽清潔液','鞘液濾芯','吸樣針','品管液'],hours:1.2},
+ {id:'HA8190',brand:'ARKRAY 愛科來',model:'ADAMS A1c HA-8190V',cat:'糖化血色素',type:'全自動醣化血色素分析儀',lic:'衛部醫器輸字第038678號',principle:'HPLC 高效液相層析（離子交換）',pm:3,kit:['分析管柱','線上濾芯','泵浦密封圈','溶血洗淨液','校正液 Calibrator 80'],hours:1.0},
+ {id:'HA8180',brand:'ARKRAY 愛科來',model:'ADAMS A1c HA-8180V',cat:'糖化血色素',type:'全自動醣化血色素分析儀',lic:'衛部醫器輸字第026537號',principle:'HPLC 高效液相層析（離子交換）',pm:3,kit:['分析管柱','線上濾芯','泵浦密封圈','溶血洗淨液','校正液 Calibrator 80'],hours:1.0},
+ {id:'HA8380',brand:'ARKRAY 愛科來',model:'ADAMS A1c Lite HA-8380V',cat:'糖化血色素',type:'全自動醣化血色素系統',lic:'衛部醫器輸字第028931號',principle:'HPLC 高效液相層析（精簡型）',pm:3,kit:['分析管柱','線上濾芯','溶血洗淨液'],hours:0.8},
+ {id:'PCA1C',brand:'ARKRAY 愛科來',model:'PocketChem A1c',cat:'糖化血色素',type:'攜帶型醣化血色素分析系統',lic:'衛部醫器輸字第031144號',principle:'硼酸親和法（卡匣式）',pm:12,kit:['光學檢查卡匣'],hours:0.3},
+ {id:'OM6060',brand:'ARKRAY 愛科來',model:'OSMO STATION OM-6060',cat:'滲透壓',type:'全自動冰點滲透壓儀',lic:'衛部醫器輸壹字第016948號',principle:'冰點下降法',pm:6,kit:['冷卻探針清潔組','標準液組','品管液組'],hours:0.8},
+ {id:'KGOLD',brand:'Thermo B·R·A·H·M·S',model:'KRYPTOR GOLD',cat:'免疫分析',type:'全自動免疫分析儀',lic:'衛部醫器輸壹登字第022008號',principle:'TRACE 時間解析螢光（雷射激發）',pm:6,kit:['取樣針','蠕動泵管組','系統液濾芯','清洗液','品管液'],hours:1.5},
+ {id:'KCPLUS',brand:'Thermo B·R·A·H·M·S',model:'KRYPTOR compact PLUS',cat:'免疫分析',type:'全自動免疫分析儀',lic:'衛部醫器輸壹登字第010536號',principle:'TRACE 時間解析螢光（雷射激發）',pm:6,kit:['取樣針','蠕動泵管組','系統液濾芯','清洗液'],hours:1.2},
+ {id:'KCOMP',brand:'Thermo B·R·A·H·M·S',model:'KRYPTOR compact',cat:'免疫分析',type:'全自動免疫系統',lic:'衛部醫器輸壹登字第004931號',principle:'TRACE 時間解析螢光（雷射激發）',pm:6,kit:['取樣針','蠕動泵管組','清洗液'],hours:1.2},
+ {id:'VIDAS3',brand:'bioMérieux 生物梅里埃',model:'VIDAS 3',cat:'免疫分析',type:'全自動免疫分析儀',lic:'原廠台灣分公司持證／醫兆經銷',principle:'ELFA 酵素連結螢光（SPR 固相吸頭＋試劑條）',pm:6,kit:['SPR 座清潔組','光學讀頭校正','溫度檢測探棒','門片 O 環'],hours:1.0},
+ {id:'VIDAS30',brand:'bioMérieux 生物梅里埃',model:'VIDAS 30',cat:'免疫分析',type:'自動免疫分析儀',lic:'原廠台灣分公司持證／醫兆經銷',principle:'ELFA 酵素連結螢光',pm:6,kit:['SPR 座清潔組','光學讀頭校正','溫度檢測探棒'],hours:1.0},
+ {id:'MVIDAS',brand:'bioMérieux 生物梅里埃',model:'Mini VIDAS',cat:'免疫分析',type:'桌上型免疫分析儀',lic:'原廠台灣分公司持證／醫兆經銷',principle:'ELFA 酵素連結螢光',pm:12,kit:['SPR 座清潔組','溫度檢測探棒'],hours:0.6},
+ {id:'SC120',brand:'Mindray 邁瑞',model:'SC-120',cat:'血液學',type:'自動推片染色機',lic:'衛部醫器陸輸壹字第005087號',principle:'自動推片＋染色（配合血球儀）',pm:6,kit:['推片刀片','染色槽清潔組','管路組'],hours:0.8},
+ {id:'DS2',brand:'Dynex',model:'DS2',cat:'ELISA',type:'全自動 ELISA 分析系統',lic:'衛部醫器輸壹登字第022653號',principle:'微孔盤酵素免疫（吸光度）',pm:6,kit:['吸樣針','洗盤頭','濾光片檢查盤'],hours:1.0}
+];
+var MBYID={};MODELS.forEach(function(m){MBYID[m.id]=m;});
+
+/* ---------- 出發據點與行政區 ---------- */
+var BASES=[
+ {n:'醫兆台北總部（中正區紹興北街）',lat:25.0447,lng:121.5262},
+ {n:'板橋',lat:25.0115,lng:121.4627},{n:'新莊',lat:25.0360,lng:121.4500},{n:'三重',lat:25.0617,lng:121.4880},
+ {n:'中和',lat:24.9993,lng:121.4990},{n:'新店',lat:24.9676,lng:121.5410},{n:'內湖',lat:25.0690,lng:121.5890},
+ {n:'士林',lat:25.0928,lng:121.5245},{n:'汐止',lat:25.0630,lng:121.6610},{n:'淡水',lat:25.1690,lng:121.4410},
+ {n:'土城',lat:24.9720,lng:121.4430},{n:'林口',lat:25.0770,lng:121.3910}
+];
+var DIST=[ /* 名稱, lat, lng, 權重 */
+ ['台北市中正區',25.0324,121.5199,4],['台北市大同區',25.0634,121.5131,2],['台北市中山區',25.0640,121.5330,4],['台北市松山區',25.0500,121.5770,3],
+ ['台北市大安區',25.0264,121.5436,4],['台北市萬華區',25.0285,121.4979,3],['台北市信義區',25.0330,121.5654,3],['台北市士林區',25.0928,121.5245,3],
+ ['台北市北投區',25.1321,121.5017,3],['台北市內湖區',25.0690,121.5890,3],['台北市南港區',25.0550,121.6070,1],['台北市文山區',24.9890,121.5700,2],
+ ['新北市板橋區',25.0115,121.4627,5],['新北市三重區',25.0617,121.4880,4],['新北市中和區',24.9993,121.4990,4],['新北市永和區',25.0090,121.5150,3],
+ ['新北市新莊區',25.0360,121.4500,4],['新北市新店區',24.9676,121.5410,3],['新北市土城區',24.9720,121.4430,2],['新北市蘆洲區',25.0850,121.4730,2],
+ ['新北市汐止區',25.0630,121.6610,2],['新北市樹林區',24.9907,121.4200,2],['新北市三峽區',24.9340,121.3690,1],['新北市淡水區',25.1690,121.4410,2],
+ ['新北市林口區',25.0770,121.3910,2],['新北市五股區',25.0830,121.4380,1],['新北市泰山區',25.0590,121.4310,1],['新北市鶯歌區',24.9550,121.3540,1],
+ ['新北市瑞芳區',25.1090,121.8100,1],['新北市深坑區',25.0020,121.6160,1]
+];
+/* 每種客戶的設備組合：[機型, 最少, 最多] */
+var MIX={
+ '醫學中心':[['KGOLD',1,2],['KCPLUS',0,1],['VIDAS3',1,3],['VIDAS30',0,2],['AX4060',1,3],['AEYE',1,2],['HA8190',1,3],['HA8180',0,2],['OM6060',1,2],['SC120',0,2],['DS2',0,1]],
+ '區域醫院':[['VIDAS3',0,1],['VIDAS30',1,2],['AX4030',1,2],['AEYE',0,1],['HA8180',1,2],['KCOMP',0,1],['OM6060',0,1]],
+ '地區醫院':[['VIDAS30',0,1],['MVIDAS',0,1],['AE4020',1,1],['AJET',0,1],['HA8380',1,1]],
+ '醫事檢驗所':[['AX4030',0,1],['AE4020',0,1],['HA8180',1,2],['KCOMP',0,1],['MVIDAS',0,1]],
+ '診所':[['PCA1C',0,1],['PU4010',0,1],['AE4070',0,1],['HA8380',0,1],['MVIDAS',0,1]]
+};
+var TYPECOUNT=[['醫學中心',8],['區域醫院',22],['地區醫院',34],['醫事檢驗所',28],['診所',60]];
+
+/* ---------- 工具 ---------- */
+var DAY=86400000;
+function today(){var d=new Date();d.setHours(0,0,0,0);return d;}
+function fmt(d){var m=d.getMonth()+1,dd=d.getDate();return d.getFullYear()+'-'+(m<10?'0':'')+m+'-'+(dd<10?'0':'')+dd;}
+function parseD(s){var p=String(s).split(/[-\/]/);if(p.length<3)return null;var d=new Date(+p[0],+p[1]-1,+p[2]);return isNaN(d.getTime())?null:d;}
+function addMonths(d,n){var r=new Date(d.getTime());r.setMonth(r.getMonth()+n);return r;}
+function km(a,b,c,d){var R=6371,t=Math.PI/180,x=(c-a)*t,y=(d-b)*t,h=Math.sin(x/2)*Math.sin(x/2)+Math.cos(a*t)*Math.cos(c*t)*Math.sin(y/2)*Math.sin(y/2);return 2*R*Math.asin(Math.sqrt(h));}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function $(id){return document.getElementById(id);}
+function rng(seed){var s=seed>>>0;return function(){s=(s*1664525+1013904223)>>>0;return s/4294967296;};}
+var LETTERS='ABCDEFGHJKLMNPQRSTUVWXYZ';
+function code(i){return i<24?LETTERS[i]:LETTERS[Math.floor(i/24)-1]+LETTERS[i%24];}
+
+/* ---------- 產生示範資料 ---------- */
+function genDemo(){
+  var r=rng(20261124),sites=[],devId=0,T=today();
+  var wsum=0;DIST.forEach(function(d){wsum+=d[3];});
+  function pickDist(){var x=r()*wsum;for(var i=0;i<DIST.length;i++){x-=DIST[i][3];if(x<=0)return DIST[i];}return DIST[0];}
+  var counter={};
+  TYPECOUNT.forEach(function(tc){
+    var type=tc[0];counter[type]=0;
+    for(var k=0;k<tc[1];k++){
+      var d=pickDist(),idx=counter[type]++;
+      var short=type==='醫事檢驗所'?'示範檢驗所':(type==='診所'?'示範診所':'示範'+type.replace('醫院','')+'醫院');
+      if(type==='醫學中心')short='示範醫學中心';
+      var s={id:'S'+sites.length,name:short+' '+code(idx),type:type,area:d[0],lat:d[1]+(r()-0.5)*0.022,lng:d[2]+(r()-0.5)*0.024,devices:[]};
+      MIX[type].forEach(function(mx){
+        var n=mx[1]+Math.floor(r()*(mx[2]-mx[1]+1));
+        for(var j=0;j<n;j++){
+          var m=MBYID[mx[0]],cycDays=m.pm*30.4;
+          var back=Math.floor(r()*cycDays*1.12);
+          s.devices.push({id:'D'+(devId++),model:m.id,sn:m.id.substr(0,3)+(10000+Math.floor(r()*89999)),last:fmt(new Date(T.getTime()-back*DAY))});
+        }
+      });
+      if(s.devices.length===0){s.devices.push({id:'D'+(devId++),model:'PCA1C',sn:'PCA'+(10000+Math.floor(r()*89999)),last:fmt(new Date(T.getTime()-Math.floor(r()*300)*DAY))});}
+      sites.push(s);
+    }
+  });
+  return sites;
+}
+
+/* ---------- 狀態 ---------- */
+var LS={get:function(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}},set:function(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
+var SITES=LS.get('mt_sites',null)||genDemo();
+var IS_DEMO=!LS.get('mt_sites',null);
+var DONE=LS.get('mt_done',{}); /* devId -> 日期 */
+var ORIGIN={lat:BASES[0].lat,lng:BASES[0].lng,name:BASES[0].n};
+var ROUTE=[];
+
+function devLast(d){return parseD(DONE[d.id]||d.last);}
+function devDue(d){var m=MBYID[d.model];return addMonths(devLast(d),m?m.pm:6);}
+function devStatus(d){var days=Math.round((devDue(d)-today())/DAY);if(days<0)return{k:'over',t:'逾期 '+(-days)+' 天',days:days};if(days<=14)return{k:'soon',t:days+' 天後到期',days:days};if(days<=30)return{k:'month',t:days+' 天後到期',days:days};return{k:'ok',t:days+' 天後',days:days};}
+var RANK={over:0,soon:1,month:2,ok:3};
+var COLOR={over:'#c0392b',soon:'#e67e22',month:'#c9a400',ok:'#2e8b57'};
+function siteWorst(s){var w='ok';s.devices.forEach(function(d){var k=devStatus(d).k;if(RANK[k]<RANK[w])w=k;});return w;}
+function wanted(d,mode){var k=devStatus(d).k;if(mode==='all')return true;if(mode==='over')return k==='over';return k!=='ok';}
+
+/* ---------- 附近 ---------- */
+function nearSites(){
+  var R=+$('selRadius').value,mode=$('selShow').value,out=[];
+  SITES.forEach(function(s){
+    var dk=km(ORIGIN.lat,ORIGIN.lng,s.lat,s.lng);if(dk>R)return;
+    var devs=s.devices.filter(function(d){return wanted(d,mode);});
+    if(!devs.length)return;
+    out.push({s:s,km:dk,devs:devs});
+  });
+  out.sort(function(a,b){return a.km-b.km;});
+  return out;
+}
+function renderNear(){
+  var list=nearSites(),cnt={over:0,soon:0,month:0,ok:0},R=+$('selRadius').value;
+  SITES.forEach(function(s){if(km(ORIGIN.lat,ORIGIN.lng,s.lat,s.lng)>R)return;s.devices.forEach(function(d){cnt[devStatus(d).k]++;});});
+  $('nearStats').innerHTML=stat('s-over',cnt.over,'逾期')+stat('s-soon',cnt.soon,'14 天內')+stat('s-month',cnt.month,'30 天內')+stat('s-ok',cnt.ok,'正常');
+  var h='';
+  if(!list.length)h='<p class="muted">這個範圍內沒有符合條件的設備，試著把半徑放大。</p>';
+  list.forEach(function(it){
+    var s=it.s;
+    h+='<div class="site"><h3>'+esc(s.name)+' <span class="badge" style="background:'+COLOR[siteWorst(s)]+'">'+it.km.toFixed(1)+' km</span></h3>';
+    h+='<div class="meta">'+esc(s.type)+'・'+esc(s.area)+'・共 '+s.devices.length+' 台 <a href="'+navUrl(s)+'" target="_blank">導航</a> ・ <a href="#" data-site="'+s.id+'">設備明細</a></div>';
+    it.devs.sort(function(a,b){return devStatus(a).days-devStatus(b).days;}).forEach(function(d){h+=devRow(d);});
+    h+='</div>';
+  });
+  $('nearList').innerHTML=h;
+  drawMap($('nearMap'),list,R);
+  $('geoMsg').textContent='目前中心：'+ORIGIN.name;
+}
+function stat(c,n,t){return '<div class="stat '+c+'"><b>'+n+'</b><span>'+t+'</span></div>';}
+function devRow(d){
+  var m=MBYID[d.model]||{model:d.model,brand:''},st=devStatus(d);
+  return '<div class="dev"><div class="nm">'+esc(m.model)+' <small>'+esc(m.brand)+'・序號 '+esc(d.sn)+'・上次 '+fmt(devLast(d))+'</small></div>'+
+    '<span class="badge" style="background:'+COLOR[st.k]+'">'+st.t+'</span> <button class="small ok" data-done="'+d.id+'" style="margin-left:6px">完成</button></div>';
+}
+function navUrl(s){return 'https://maps.google.com/?daddr='+s.lat.toFixed(5)+','+s.lng.toFixed(5)+'&saddr='+ORIGIN.lat.toFixed(5)+','+ORIGIN.lng.toFixed(5);}
+
+function drawMap(el,list,R){
+  var W=520,H=420,cx=W/2,cy=H/2,sc=(Math.min(W,H)/2-16)/R,cosl=Math.cos(ORIGIN.lat*Math.PI/180);
+  var svg='<svg class="map" viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg">';
+  [1,0.5].forEach(function(f){svg+='<circle cx="'+cx+'" cy="'+cy+'" r="'+(R*f*sc)+'" fill="none" stroke="#b8c4d0" stroke-dasharray="4 4"/>'+
+    '<text x="'+(cx+4)+'" y="'+(cy-R*f*sc+14)+'" font-size="12" fill="#7a8794">'+(R*f)+' km</text>';});
+  /* 行政區名（淡） */
+  DIST.forEach(function(d){var x=cx+(d[2]-ORIGIN.lng)*111.32*cosl*sc,y=cy-(d[1]-ORIGIN.lat)*110.57*sc;
+    if(x>10&&x<W-10&&y>10&&y<H-10)svg+='<text x="'+x+'" y="'+y+'" font-size="11" fill="#c2ccd6" text-anchor="middle">'+d[0].substr(3)+'</text>';});
+  list.forEach(function(it,i){var s=it.s,x=cx+(s.lng-ORIGIN.lng)*111.32*cosl*sc,y=cy-(s.lat-ORIGIN.lat)*110.57*sc;
+    svg+='<g data-site="'+s.id+'"><circle cx="'+x+'" cy="'+y+'" r="9" fill="'+COLOR[siteWorst(s)]+'" stroke="#fff" stroke-width="2"/><text x="'+x+'" y="'+(y+4)+'" font-size="10" fill="#fff" text-anchor="middle" data-site="'+s.id+'">'+(i+1)+'</text></g>';});
+  svg+='<circle cx="'+cx+'" cy="'+cy+'" r="7" fill="#123a5c"/><text x="'+(cx+10)+'" y="'+(cy+4)+'" font-size="12" fill="#123a5c">我</text></svg>';
+  el.innerHTML=svg;
+}
+
+/* ---------- 路線 ---------- */
+function buildRoute(){
+  var pool=nearSites().slice(),cur={lat:ORIGIN.lat,lng:ORIGIN.lng},out=[],hours=+$('selHours').value*60,used=0,later=[];
+  while(pool.length){
+    var bi=0,bd=1e9;
+    for(var i=0;i<pool.length;i++){var dd=km(cur.lat,cur.lng,pool[i].s.lat,pool[i].s.lng);if(dd<bd){bd=dd;bi=i;}}
+    var it=pool.splice(bi,1)[0],road=bd*1.3,drive=road/25*60,work=0;
+    it.devs.forEach(function(d){work+=((MBYID[d.model]||{hours:0.7}).hours)*60;});
+    if(used+drive+work>hours){later.push({s:it.s,devs:it.devs,road:road,drive:drive,work:work,cum:0,tomorrow:true});continue;}
+    used+=drive+work;
+    out.push({s:it.s,devs:it.devs,road:road,drive:drive,work:work,cum:used,tomorrow:false});
+    cur=it.s;
+  }
+  ROUTE=out.concat(later);return ROUTE;
+}
+function renderRoute(){
+  var r=buildRoute(),h='',tk=0,tm=0,nDev=0,nT=0;
+  r.forEach(function(x,i){
+    if(x.tomorrow){nT++;}else{tk+=x.road;tm+=x.drive+x.work;nDev+=x.devs.length;}
+    h+='<div class="step" style="'+(x.tomorrow?'opacity:.45':'')+'"><div class="n">'+(i+1)+'</div><div class="b"><b>'+esc(x.s.name)+'</b> '+(x.tomorrow?'<span class="badge" style="background:#7a8794">排到明天</span>':'')+
+      '<div class="muted">'+esc(x.s.area)+'・車程約 '+x.road.toFixed(1)+' km / '+Math.round(x.drive)+' 分・保養 '+x.devs.length+' 台約 '+Math.round(x.work)+' 分'+(x.tomorrow?'':'・累計 '+(x.cum/60).toFixed(1)+' 小時')+'</div>'+
+      '<div class="muted">'+x.devs.map(function(d){return esc((MBYID[d.model]||{model:d.model}).model);}).join('、')+'</div>'+
+      '<a href="'+navUrl(x.s)+'" target="_blank">導航到這站</a></div></div>';
+  });
+  if(!r.length)h='<p class="muted">附近沒有要保養的設備。到「附近待保養」調整半徑。</p>';
+  $('routeList').innerHTML=h;
+  $('routeStats').innerHTML=stat('s-ok',r.length-nT,'今日站數')+stat('s-month',nDev,'今日台數')+stat('s-soon',tk.toFixed(0)+' km','估計里程')+stat('s-over',(tm/60).toFixed(1)+' h','估計工時');
+  var today_=r.filter(function(x){return !x.tomorrow;}).slice(0,9);
+  if(today_.length){
+    var last=today_[today_.length-1].s,wp=today_.slice(0,-1).map(function(x){return x.s.lat.toFixed(5)+','+x.s.lng.toFixed(5);}).join('|');
+    $('btnGmaps').href='https://www.google.com/maps/dir/?api=1&origin='+ORIGIN.lat.toFixed(5)+','+ORIGIN.lng.toFixed(5)+'&destination='+last.lat.toFixed(5)+','+last.lng.toFixed(5)+(wp?'&waypoints='+encodeURIComponent(wp):'')+'&travelmode=driving';
+  }
+}
+
+/* ---------- 備料 ---------- */
+function renderParts(){
+  if(!ROUTE.length)buildRoute();
+  var need={},byModel={};
+  ROUTE.forEach(function(x){if(x.tomorrow)return;x.devs.forEach(function(d){var m=MBYID[d.model];if(!m)return;byModel[m.model]=(byModel[m.model]||0)+1;m.kit.forEach(function(p){var key=m.brand.split(' ')[0]+'｜'+p;need[key]=(need[key]||0)+1;});});});
+  var keys=Object.keys(need).sort();
+  if(!keys.length){$('partsList').innerHTML='<p class="muted">今日路線沒有設備。</p>';return;}
+  var h='<p>今日要保養：'+Object.keys(byModel).map(function(k){return esc(k)+' ×'+byModel[k];}).join('、')+'</p><table><tr><th style="width:36px">✓</th><th>品牌｜料件</th><th>需要</th><th>建議多帶</th></tr>';
+  keys.forEach(function(k){var n=need[k];h+='<tr><td><input type="checkbox" class="chk"></td><td>'+esc(k)+'</td><td>'+n+'</td><td>'+(n+Math.max(1,Math.round(n*0.2)))+'</td></tr>';});
+  h+='</table><p class="muted">另外固定帶：手套、酒精與消毒液、生物危害垃圾袋、三用電表、溫度計、手電筒、工具組、保養紀錄單。</p>';
+  $('partsList').innerHTML=h;
+}
+
+/* ---------- 產品線 ---------- */
+function renderCatalog(){
+  var q=$('catQ').value.trim().toLowerCase(),c=$('catCat').value,h='';
+  var inst={};SITES.forEach(function(s){s.devices.forEach(function(d){inst[d.model]=(inst[d.model]||0)+1;});});
+  MODELS.forEach(function(m){
+    if(c&&m.cat!==c)return;
+    var txt=(m.brand+m.model+m.cat+m.type+m.principle).toLowerCase();
+    if(q&&txt.indexOf(q)<0)return;
+    h+='<div class="panel"><div class="row"><h2 class="grow" style="margin:0">'+esc(m.model)+'</h2><span class="badge" style="background:#5d6b79">'+m.id+'</span></div>'+
+      '<table><tr><th style="width:110px">品牌</th><td>'+esc(m.brand)+'</td></tr><tr><th>類型</th><td>'+esc(m.cat)+'｜'+esc(m.type)+'</td></tr>'+
+      '<tr><th>原理</th><td>'+esc(m.principle)+'</td></tr><tr><th>許可證</th><td>'+esc(m.lic)+'</td></tr>'+
+      '<tr><th>保養週期</th><td>每 '+m.pm+' 個月（示範）・約 '+m.hours+' 小時</td></tr><tr><th>PM 套件</th><td>'+esc(m.kit.join('、'))+'（示範）</td></tr>'+
+      '<tr><th>裝機（示範）</th><td>'+(inst[m.id]||0)+' 台 <a href="#" data-where="'+m.id+'">看裝在哪裡</a></td></tr></table></div>';
+  });
+  $('catList').innerHTML=h||'<p class="muted">找不到符合的機型。</p>';
+}
+function showWhere(mid){
+  var m=MBYID[mid],rows=[];
+  SITES.forEach(function(s){s.devices.forEach(function(d){if(d.model===mid)rows.push({s:s,d:d,k:km(ORIGIN.lat,ORIGIN.lng,s.lat,s.lng)});});});
+  rows.sort(function(a,b){return a.k-b.k;});
+  var h='<h2>'+esc(m.model)+' 裝機地點（'+rows.length+' 台，示範）</h2><table><tr><th>客戶</th><th>區域</th><th>距離</th><th>狀態</th></tr>';
+  rows.forEach(function(x){var st=devStatus(x.d);h+='<tr><td>'+esc(x.s.name)+'</td><td>'+esc(x.s.area)+'</td><td>'+x.k.toFixed(1)+' km</td><td><span class="badge" style="background:'+COLOR[st.k]+'">'+st.t+'</span></td></tr>';});
+  openModal(h+'</table>');
+}
+
+/* ---------- 故障排除（通用方向） ---------- */
+var FIX={
+ '糖化血色素':[
+  {k:['壓力','pressure','高壓','跳高'],t:'泵浦壓力過高',s:['檢查線上濾芯是否堵塞，必要時更換','確認分析管柱使用次數是否到壽命','檢查管路有無折到、接頭結晶','確認溶劑瓶濾頭沒有吸到底部沉積物']},
+  {k:['壓力低','漏','漏液','沒壓力'],t:'壓力過低／漏液',s:['檢查各接頭與泵浦密封圈有無滲漏','確認溶劑量足夠、吸管有浸在液面下','排除管路氣泡（Purge）']},
+  {k:['峰','波形','層析','分離','偏','不準','偏高','偏低'],t:'層析峰異常／數值偏移',s:['先跑品管液與校正液確認','檢查管柱溫度是否穩定','確認溶血洗淨液與緩衝液批號、效期','管柱老化會讓峰變寬，考慮更換']},
+  {k:['氣泡','bubble'],t:'管路氣泡',s:['確認溶劑已除氣、瓶蓋通氣正常','執行 Purge','檢查吸液管接頭是否鬆動吸入空氣']}
+ ],
+ '尿液分析':[
+  {k:['卡','試紙','夾','送紙'],t:'試紙條卡住／送紙異常',s:['清除試紙通道殘留與碎屑','確認試紙批號與機型相符、未受潮','檢查送紙滾輪是否磨損']},
+  {k:['條碼','barcode','讀不到'],t:'條碼讀取失敗',s:['擦拭條碼讀頭','確認條碼列印品質與黏貼位置','檢查 LIS 設定是否改過']},
+  {k:['比重','色','濁','不準','偏'],t:'結果偏移',s:['用光學校正條與品管液確認','清潔反射光學讀取區','確認試紙保存條件（溫度、濕度、開封時間）']},
+  {k:['吸','針','樣本量','不足'],t:'吸樣異常',s:['檢查吸樣針是否堵塞或彎曲','檢查蠕動泵管是否老化','確認樣本量與檢體管規格']}
+ ],
+ '免疫分析':[
+  {k:['溫度','temp'],t:'溫度異常',s:['用溫度探棒量測孵育區','檢查風扇與散熱口是否堵塞','確認室溫在規格範圍']},
+  {k:['螢光','光學','讀值','訊號','偏低','偏高','不準'],t:'訊號／結果異常',s:['先跑品管液，確認試劑批號與校正是否過期','執行光學自檢或讀頭校正','檢查取樣針、管路是否有殘留或氣泡']},
+  {k:['吸','針','液面','撞'],t:'取樣針異常',s:['檢查針頭是否彎曲、堵塞','確認液面感測正常','檢查樣本杯位置與高度']},
+  {k:['雷射','laser'],t:'雷射光源（KRYPTOR）',s:['查看雷射累計使用時數','執行光學檢查程序','依原廠程序更換，不要自行拆光學模組']}
+ ],
+ '滲透壓':[{k:['冰','結晶','凍','不準','偏'],t:'冰點量測異常',s:['清潔冷卻探針','用標準液重新校正','確認樣本量與樣本杯清潔']}],
+ '血液學':[{k:['推片','厚','染色','不均'],t:'推片／染色不良',s:['檢查推片刀片是否磨損','確認染液效期與液位','清潔染色槽']}],
+ 'ELISA':[{k:['洗','殘留','吸光','不準'],t:'洗盤或讀值異常',s:['檢查洗盤頭是否堵塞','跑濾光片檢查盤','確認孵育溫度']}]
+};
+function renderFix(){
+  var mid=$('fixModel').value,m=MBYID[mid],q=$('fixQ').value.trim().toLowerCase(),rules=FIX[m.cat]||[],hits=[];
+  rules.forEach(function(r){var sc=0;r.k.forEach(function(k){if(q&&q.indexOf(k.toLowerCase())>=0)sc++;});if(sc||!q)hits.push({r:r,sc:sc});});
+  hits.sort(function(a,b){return b.sc-a.sc;});
+  var h='<h2 style="margin-top:12px">'+esc(m.model)+'（'+esc(m.principle)+'）</h2>';
+  if(!hits.length)h+='<p class="muted">沒有對到常見問題。正式版會直接搜尋原廠手冊。</p>';
+  hits.forEach(function(x,i){h+='<div class="site"><h3>'+(i+1)+'. '+esc(x.r.t)+'</h3><ol>'+x.r.s.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ol><div class="muted">對照：原廠 Service Manual（正式版會顯示章節與頁碼）</div></div>';});
+  $('fixOut').innerHTML=h;
+}
+
+/* ---------- 資料匯入匯出 ---------- */
+function summary(){var n=0;SITES.forEach(function(s){n+=s.devices.length;});$('dataSummary').innerHTML='目前：<b>'+SITES.length+'</b> 個客戶、<b>'+n+'</b> 台設備（'+(IS_DEMO?'示範資料':'已匯入的資料')+'）';}
+function doImport(){
+  var lines=$('csvBox').value.split(/\r?\n/).filter(function(l){return l.trim();}),map={},bad=0,ok=0;
+  if(lines.length<2){$('importMsg').textContent='至少要有標題列和一筆資料。';return;}
+  lines.slice(1).forEach(function(l){
+    var c=l.split(',').map(function(x){return x.trim();});
+    var lat=parseFloat(c[3]),lng=parseFloat(c[4]);
+    if(c.length<8||isNaN(lat)||isNaN(lng)||!MBYID[c[5]]||!parseD(c[7])){bad++;return;}
+    var key=c[0];if(!map[key])map[key]={id:'S'+Object.keys(map).length,name:c[0],type:c[1],area:c[2],lat:lat,lng:lng,devices:[]};
+    map[key].devices.push({id:'I'+(ok++),model:c[5],sn:c[6],last:fmt(parseD(c[7]))});
+  });
+  var arr=Object.keys(map).map(function(k){return map[k];});
+  if(!arr.length){$('importMsg').textContent='沒有可用的資料列（'+bad+' 列格式不對）。';return;}
+  SITES=arr;IS_DEMO=false;DONE={};LS.set('mt_sites',SITES);LS.set('mt_done',DONE);
+  $('importMsg').textContent='已匯入 '+arr.length+' 個客戶、'+ok+' 台設備'+(bad?'，略過 '+bad+' 列格式不對的資料':'')+'。';
+  summary();refresh();
+}
+function doExport(){
+  var out=['客戶名稱,類型,區域,緯度,經度,機型代碼,序號,上次保養日'];
+  SITES.forEach(function(s){s.devices.forEach(function(d){out.push([s.name,s.type,s.area,s.lat.toFixed(5),s.lng.toFixed(5),d.model,d.sn,fmt(devLast(d))].join(','));});});
+  $('csvBox').value=out.join('\n');
+}
+
+/* ---------- 設備明細 / 完成保養 ---------- */
+function showSite(id){
+  var s=null;SITES.forEach(function(x){if(x.id===id)s=x;});if(!s)return;
+  var h='<h2>'+esc(s.name)+'</h2><p class="muted">'+esc(s.type)+'・'+esc(s.area)+'・距離 '+km(ORIGIN.lat,ORIGIN.lng,s.lat,s.lng).toFixed(1)+' km・<a href="'+navUrl(s)+'" target="_blank">導航</a></p>';
+  s.devices.slice().sort(function(a,b){return devStatus(a).days-devStatus(b).days;}).forEach(function(d){h+=devRow(d)+'<div class="muted" style="padding-left:4px">下次到期 '+fmt(devDue(d))+'</div>';});
+  openModal(h,id);
+}
+function markDone(id){DONE[id]=fmt(today());LS.set('mt_done',DONE);refresh();var box=$('modal');if(!box.classList.contains('hide')){var sid=box.getAttribute('data-site');if(sid)showSite(sid);}}
+function openModal(h,sid){$('modalBox').innerHTML=h+'<div style="text-align:right;margin-top:12px"><button class="sub" id="btnClose">關閉</button></div>';var m=$('modal');m.setAttribute('data-site',sid||'');m.classList.remove('hide');}
+
+/* ---------- 切頁與事件 ---------- */
+var CUR='near';
+function show(tab){CUR=tab;['near','route','parts','catalog','fix','data'].forEach(function(t){$('tab-'+t).classList[t===tab?'remove':'add']('hide');});
+  var as=$('nav').getElementsByTagName('a');for(var i=0;i<as.length;i++)as[i].className=as[i].getAttribute('data-tab')===tab?'on':'';refresh();window.scrollTo(0,0);}
+function refresh(){if(CUR==='near')renderNear();else if(CUR==='route')renderRoute();else if(CUR==='parts'){buildRoute();renderParts();}else if(CUR==='catalog')renderCatalog();else if(CUR==='data')summary();}
+
+function init(){
+  $('selBase').innerHTML=BASES.map(function(b,i){return '<option value="'+i+'">'+esc(b.n)+'</option>';}).join('');
+  $('catCat').innerHTML='<option value="">全部類別</option>'+CATS.map(function(c){return '<option>'+c+'</option>';}).join('');
+  $('fixModel').innerHTML=MODELS.map(function(m){return '<option value="'+m.id+'">'+esc(m.model)+'（'+esc(m.cat)+'）</option>';}).join('');
+  $('fixModel').value='HA8180';
+  $('nav').addEventListener('click',function(e){var t=e.target.getAttribute('data-tab');if(t){e.preventDefault();show(t);}});
+  $('selBase').addEventListener('change',function(){var b=BASES[+this.value];ORIGIN={lat:b.lat,lng:b.lng,name:b.n};refresh();});
+  $('selRadius').addEventListener('change',refresh);$('selShow').addEventListener('change',refresh);$('selHours').addEventListener('change',refresh);
+  $('btnRoute').addEventListener('click',renderRoute);
+  $('btnToRoute').addEventListener('click',function(){show('route');});
+  $('btnGeo').addEventListener('click',function(){
+    if(!navigator.geolocation){$('geoMsg').textContent='這台裝置不支援定位，請選出發據點。';return;}
+    $('geoMsg').textContent='定位中…';
+    navigator.geolocation.getCurrentPosition(function(p){ORIGIN={lat:p.coords.latitude,lng:p.coords.longitude,name:'目前位置（±'+Math.round(p.coords.accuracy)+' m）'};refresh();},
+      function(err){$('geoMsg').textContent='無法取得位置（'+(err.code===1?'未允許定位':'訊號不足')+'），請改選出發據點。';},{enableHighAccuracy:true,timeout:15000,maximumAge:60000});
+  });
+  $('catQ').addEventListener('input',renderCatalog);$('catCat').addEventListener('change',renderCatalog);
+  $('btnFix').addEventListener('click',renderFix);$('fixModel').addEventListener('change',renderFix);
+  $('fixQ').addEventListener('keyup',function(e){if(e.keyCode===13)renderFix();});
+  $('btnImport').addEventListener('click',doImport);$('btnExport').addEventListener('click',doExport);
+  $('btnSample').addEventListener('click',function(){$('csvBox').value='客戶名稱,類型,區域,緯度,經度,機型代碼,序號,上次保養日\n範例醫院,區域醫院,台北市中山區,25.0640,121.5330,HA8180,HA810001,2026-08-15\n範例醫院,區域醫院,台北市中山區,25.0640,121.5330,VIDAS30,VID20002,2026-06-01\n範例診所,診所,新北市板橋區,25.0115,121.4627,PCA1C,PCA30003,2026-01-10';});
+  $('btnReset').addEventListener('click',function(){try{localStorage.removeItem('mt_sites');localStorage.removeItem('mt_done');}catch(e){}SITES=genDemo();IS_DEMO=true;DONE={};$('importMsg').textContent='已恢復示範資料。';summary();refresh();});
+  document.addEventListener('click',function(e){
+    var t=e.target;
+    while(t&&t!==document){
+      if(t.getAttribute){
+        if(t.getAttribute('data-done')){e.preventDefault();markDone(t.getAttribute('data-done'));return;}
+        if(t.getAttribute('data-site')&&t.id!=='modal'){e.preventDefault();var sid=t.getAttribute('data-site');showSite(sid);$('modal').setAttribute('data-site',sid);return;}
+        if(t.getAttribute('data-where')){e.preventDefault();showWhere(t.getAttribute('data-where'));return;}
+        if(t.id==='btnClose'||t.id==='modal'){if(t===e.target){$('modal').classList.add('hide');}return;}
+      }
+      t=t.parentNode;
+    }
+  });
+  refresh();renderFix();
+}
+init();
+})();
+</script>
+</body>
+</html>
