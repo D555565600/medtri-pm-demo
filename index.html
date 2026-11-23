@@ -65,7 +65,7 @@ mark{background:#ffe58a;padding:0 1px}
 <header><h1>現場保養助手</h1><span class="tag">示範資料</span></header>
 <nav id="nav">
   <a href="#" data-tab="near" class="on">附近待保養</a>
-  <a href="#" data-tab="boss">老闆儀表板</a>
+  <a href="#" data-tab="boss">董事長儀表板</a>
   <a href="#" data-tab="team">工程師排程</a>
   <a href="#" data-tab="route">今日路線</a>
   <a href="#" data-tab="recs">保養紀錄</a>
@@ -165,9 +165,9 @@ mark{background:#ffe58a;padding:0 1px}
   <div class="panel hide" id="recCsvBox"><textarea id="recCsv"></textarea></div>
 </section>
 
-<!-- 老闆儀表板 -->
+<!-- 董事長儀表板 -->
 <section id="tab-boss" class="hide">
-  <div class="panel"><div class="row"><h2 class="grow" style="margin:0">老闆儀表板</h2><span id="bossTime" class="muted"></span></div>
+  <div class="panel"><div class="row"><h2 class="grow" style="margin:0">董事長儀表板（詹董事長）</h2><span id="bossTime" class="muted"></span></div>
     <p class="muted">一頁看完：保養進度、工程師工作量、成本、保固與合約、業務商機、未結案維修。點客戶名稱可看明細。</p></div>
   <div class="stats" id="bossK1"></div><div class="stats" id="bossK2" style="margin-top:4px"></div><div class="stats" id="bossK3" style="margin-top:4px"></div>
   <div class="cols" style="margin-top:8px">
@@ -408,19 +408,19 @@ var ORIGIN={lat:BASES[0].lat,lng:BASES[0].lng,name:BASES[0].n};
 var ROUTE=[];
 
 /* ---------- 工程師排程 ---------- */
-var ENG=['我（新人）','王工程師','李工程師','陳工程師','林工程師','鄧主管'];
-var ME=LS.get('mt_me',ENG[0]);
+var ENG=['詹董事長','鄧經理','我（新人）','王工程師','李工程師','陳工程師','林工程師'];
+var ME=LS.get('mt_me',ENG[2]);if(ENG.indexOf(ME)<0)ME=ENG[2];
 function dayStr(off){return fmt(new Date(today().getTime()+off*DAY));}
 function genAssign(){
   var r=rng(777),out=[],n=0;
   SITES.forEach(function(s){
     var due=s.devices.filter(function(d){return devStatus(d).k!=='ok';});
     if(!due.length||r()>0.38)return;
-    var eng=ENG[1+Math.floor(r()*4)];
-    out.push({id:'A'+(n++),date:dayStr(Math.floor(r()*10)),eng:eng,siteId:s.id,devIds:due.map(function(d){return d.id;}),by:'鄧主管'});
+    var eng=ENG[3+Math.floor(r()*4)];
+    out.push({id:'A'+(n++),date:dayStr(Math.floor(r()*10)),eng:eng,siteId:s.id,devIds:due.map(function(d){return d.id;}),by:'鄧經理'});
     if(r()<0.12){ /* 示範：主管不小心重複派給另一位 */
-      var e2=ENG[1+Math.floor(r()*4)];if(e2===eng)e2=ENG[(ENG.indexOf(eng)%4)+1];
-      out.push({id:'A'+(n++),date:dayStr(Math.floor(r()*10)),eng:e2,siteId:s.id,devIds:[due[0].id],by:'鄧主管'});
+      var e2=ENG[3+Math.floor(r()*4)];if(e2===eng)e2=ENG[3+((ENG.indexOf(eng)-2)%4)];
+      out.push({id:'A'+(n++),date:dayStr(Math.floor(r()*10)),eng:e2,siteId:s.id,devIds:[due[0].id],by:'鄧經理'});
     }
   });
   return out;
@@ -474,7 +474,7 @@ function renderTeam(){
   var list=ASSIGN.filter(function(a){return a.date>=T0&&a.date<=T1&&openDevs(a).length&&(view==='all'||a.eng===ME);});
   list.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:(a.eng<b.eng?-1:1);});
   var per={};ENG.forEach(function(e){per[e]=0;});list.forEach(function(a){per[a.eng]=(per[a.eng]||0)+openDevs(a).length;});
-  $('teamStats').innerHTML=ENG.map(function(e,i){return '<div class="stat" style="background:'+['#123a5c','#5b6abf','#2a8c8c','#8e5ba8','#b5651d'][i]+'"><b>'+per[e]+'</b><span>'+esc(e)+'</span></div>';}).join('');
+  $('teamStats').innerHTML=ENG.map(function(e,i){return '<div class="stat" style="background:'+['#7a5c12','#8e5ba8','#123a5c','#5b6abf','#2a8c8c','#2e8b57','#b5651d'][i%7]+'"><b>'+per[e]+'</b><span>'+esc(e)+'</span></div>';}).join('');
   var dupSet={};cf.forEach(function(c){c.list.forEach(function(a){dupSet[a.id]=1;});});
   var t='',cur='';
   list.forEach(function(a){
@@ -1009,18 +1009,18 @@ function genRecs(){
     var big=(s.type||'').indexOf('診所')<0;
     function tv(){var km=6+Math.round(r()*34);return {km:km,fuel:Math.round(km*COSTCFG.fuelkm),park:big?40+Math.round(r()*8)*20:Math.round(r()*2)*20,toll:r()<0.1?40:0};}
     function pm(date){var parts=[];m.kit.forEach(function(k){if(r()<0.6)parts.push({n:k,q:1});});
-      out.push({id:'R'+(n++),devId:d.id,siteId:s.id,date:date,type:'定期保養',eng:ENG[1+Math.floor(r()*4)],parts:parts,code:'',note:'依保養程序完成清潔、更換耗材、校正，品管液結果在範圍內。',hours:m.hours,result:'正常完成',demo:true,items:checkItems(m),itemsAll:checkItems(m).length});ext(out[out.length-1],tv());}
+      out.push({id:'R'+(n++),devId:d.id,siteId:s.id,date:date,type:'定期保養',eng:ENG[3+Math.floor(r()*4)],parts:parts,code:'',note:'依保養程序完成清潔、更換耗材、校正，品管液結果在範圍內。',hours:m.hours,result:'正常完成',demo:true,items:checkItems(m),itemsAll:checkItems(m).length});ext(out[out.length-1],tv());}
     var last=parseD(d.last);pm(d.last);
     if(!IS_DEMO)return;
     var prev=addMonths(last,-m.pm);pm(fmt(prev));
     if(r()<0.18){
       var rules=FIX[m.cat]||[],ru=rules[Math.floor(r()*rules.length)];
       var dt=new Date(prev.getTime()+Math.floor(r()*Math.max(1,(last-prev)/DAY))*DAY);
-      out.push({id:'R'+(n++),devId:d.id,siteId:s.id,date:fmt(dt),type:'故障維修',eng:r()<0.25?'鄧主管':ENG[1+Math.floor(r()*4)],
+      out.push({id:'R'+(n++),devId:d.id,siteId:s.id,date:fmt(dt),type:'故障維修',eng:r()<0.25?'鄧經理':ENG[3+Math.floor(r()*4)],
         parts:[{n:m.kit[Math.floor(r()*m.kit.length)],q:1}],code:'',note:ru?('客戶反映：'+ru.t+'。處理：'+ru.s[0]+'，測試正常。'):'故障排除完成。',hours:1.5,result:'正常完成',demo:true});ext(out[out.length-1],tv());
     }
     if(r()<0.03){var rl2=FIX[m.cat]||[],ru2=rl2[Math.floor(r()*rl2.length)];
-      out.push({id:'R'+(n++),devId:d.id,siteId:s.id,date:dayStr(-Math.floor(r()*20)),type:'故障維修',eng:r()<0.3?'鄧主管':ENG[1+Math.floor(r()*4)],parts:[],code:'',note:(ru2?'客戶反映：'+ru2.t+'。':'')+'初步判斷需更換零件，已向原廠訂料，料到後再訪。',hours:1,result:r()<0.6?'待料再訪':'需原廠支援',demo:true});ext(out[out.length-1],tv());}
+      out.push({id:'R'+(n++),devId:d.id,siteId:s.id,date:dayStr(-Math.floor(r()*20)),type:'故障維修',eng:r()<0.3?'鄧經理':ENG[3+Math.floor(r()*4)],parts:[],code:'',note:(ru2?'客戶反映：'+ru2.t+'。':'')+'初步判斷需更換零件，已向原廠訂料，料到後再訪。',hours:1,result:r()<0.6?'待料再訪':'需原廠支援',demo:true});ext(out[out.length-1],tv());}
   });});
   return out;
 }
@@ -1164,7 +1164,7 @@ function initRecs(){
   $('btnRecCsv').addEventListener('click',recCsv);
 }
 
-/* ================= 保固／合約、業務商機、老闆儀表板 ================= */
+/* ================= 保固／合約、業務商機、董事長儀表板 ================= */
 var FEE={'糖化血色素':60000,'免疫分析':80000,'尿液分析':40000,'ELISA':50000,'血液學':70000,'滲透壓':30000};      /* 保養合約年費（示範） */
 var NEWP={'糖化血色素':900000,'免疫分析':1500000,'尿液分析':600000,'ELISA':800000,'血液學':1200000,'滲透壓':400000}; /* 新機價格（示範） */
 var WCOL={'in':'#2e8b57','end':'#e67e22','ctr':'#2a8c8c','cend':'#e67e22','none':'#c0392b','na':'#8a96a3'};
@@ -1200,7 +1200,7 @@ function genLeads(){
     ['教育訓練','新進醫檢師 2 位，希望安排操作與日常保養教育訓練'],['汰換舊機','舊機常故障，院方編明年度預算評估汰換'],['保養合約','過保後想了解保養合約內容與價格'],['加購設備','分院要開檢驗室，想要一台桌上型機種'],['其他','希望報表能直接接 LIS 系統']];
   for(var i=0;i<16;i++){var s=SITES[Math.floor(r()*SITES.length)],d=s.devices[Math.floor(r()*s.devices.length)],nt0=notes[Math.floor(r()*notes.length)],m=MBYID[d.model]||{};
     var amt=nt0[0]==='保養合約'?(FEE[m.cat]||50000):nt0[0]==='汰換舊機'||nt0[0]==='加購設備'?(NEWP[m.cat]||800000):nt0[0]==='試劑耗材'?200000+Math.round(r()*8)*50000:nt0[0]==='教育訓練'?0:100000;
-    out.push({id:'L'+i,date:dayStr(-Math.floor(r()*60)),siteId:s.id,devId:d.id,kind:nt0[0],note:nt0[1],from:ENG[1+Math.floor(r()*4)],status:LSTAT[Math.floor(r()*r()*5)],amount:amt,demo:true});}
+    out.push({id:'L'+i,date:dayStr(-Math.floor(r()*60)),siteId:s.id,devId:d.id,kind:nt0[0],note:nt0[1],from:ENG[3+Math.floor(r()*4)],status:LSTAT[Math.floor(r()*r()*5)],amount:amt,demo:true});}
   return out;
 }
 function leads(){if(!LEADS){LEADS=LS.get('mt_leads',null);if(!LEADS){LEADS=IS_DEMO?genLeads():[];saveLeads();}}return LEADS;}
@@ -1267,7 +1267,7 @@ function initLeads(){
   document.addEventListener('change',function(e){var t=e.target;if(t.className&&t.className.indexOf('leadSt')>=0){var id=t.getAttribute('data-id');leads().forEach(function(l){if(l.id===id)l.status=t.value;});saveLeads();if(CUR==='leads')renderLeads();else if(CUR==='boss')renderBoss();}});
 }
 
-/* ---------- 老闆儀表板 ---------- */
+/* ---------- 董事長儀表板 ---------- */
 function bar(label,v,max,txt,col,attr){var w=max?Math.max(2,Math.round(v/max*100)):0;
   return '<div style="margin:5px 0"'+(attr||'')+'><div class="row" style="font-size:14px"><span class="grow">'+label+'</span><b>'+txt+'</b></div><div style="background:#e8edf2;border-radius:4px;height:10px"><div style="width:'+w+'%;background:'+(col||'#123a5c')+';height:10px;border-radius:4px"></div></div></div>';}
 function renderBoss(){
@@ -1286,10 +1286,10 @@ function renderBoss(){
   $('bossK2').innerHTML=stat('s-ok',pm,'本月完成保養')+stat('s-over',rp,'本月故障維修')+stat('s-month',nt(cost),'本月保養成本')+stat('s-soon',openIss.length,'未結案（待料／需原廠）');
   $('bossK3').innerHTML=stat('s-over',wk.none||0,'過保・無合約')+stat('s-month',(wk.end||0)+(wk.cend||0),'保固／合約即將到期')+stat('s-ok',op.length+' 筆',nt(lamt)+' 進行中商機')+stat('s-soon',nt(aamt),'系統提醒潛在商機');
   /* 工程師工作量（本月） */
-  var ew={};ENG.forEach(function(e){ew[e]={n:0,h:0,a:0};});mon.forEach(function(x){if(ew[x.eng]){ew[x.eng].n++;ew[x.eng].h+=x.hours||0;}});
+  var WK=ENG.filter(function(e){return e!=='詹董事長';}),ew={};ENG.forEach(function(e){ew[e]={n:0,h:0,a:0};});mon.forEach(function(x){if(ew[x.eng]){ew[x.eng].n++;ew[x.eng].h+=x.hours||0;}});
   ASSIGN.forEach(function(a){if(ew[a.eng])ew[a.eng].a+=openDevs(a).length;});
-  var mx=0;ENG.forEach(function(e){mx=Math.max(mx,ew[e].n);});
-  $('bossEng').innerHTML=ENG.map(function(e){var o=ew[e];return bar(esc(e),o.n,mx,o.n+' 筆・'+o.h.toFixed(1)+' 小時・待辦 '+o.a+' 台','#123a5c');}).join('')+(cf?'<p style="color:#c0392b"><b>⚠ 有 '+cf+' 台設備被重複派工</b>，請鄧主管到「工程師排程」處理。</p>':'<p class="muted">沒有重複派工。</p>');
+  var mx=0;WK.forEach(function(e){mx=Math.max(mx,ew[e].n);});
+  $('bossEng').innerHTML=WK.map(function(e){var o=ew[e];return bar(esc(e),o.n,mx,o.n+' 筆・'+o.h.toFixed(1)+' 小時・待辦 '+o.a+' 台','#123a5c');}).join('')+(cf?'<p style="color:#c0392b"><b>⚠ 有 '+cf+' 台設備被重複派工</b>，請鄧經理到「工程師排程」處理。</p>':'<p class="muted">沒有重複派工。</p>');
   /* 近 6 個月 */
   var months=[],h='';for(var i=5;i>=0;i--){var d0=new Date(T.getFullYear(),T.getMonth()-i,1);months.push({k:fmt(d0).slice(0,7),pm:0,rp:0,c:0});}
   R.forEach(function(x){months.forEach(function(m){if(x.date.slice(0,7)===m.k){if(x.type==='定期保養')m.pm++;else if(x.type==='故障維修')m.rp++;m.c+=recCost(x).total;}});});
@@ -1385,7 +1385,7 @@ function showSite(id){
   var s=null;SITES.forEach(function(x){if(x.id===id)s=x;});if(!s)return;
   var h='<h2>'+esc(s.name)+'</h2><p class="muted">'+esc(s.type)+'・'+esc(s.area)+'・距離 '+km(ORIGIN.lat,ORIGIN.lng,s.lat,s.lng).toFixed(1)+' km・<a href="'+navUrl(s)+'" target="_blank">導航</a></p>';
   s.devices.slice().sort(function(a,b){return devStatus(a).days-devStatus(b).days;}).forEach(function(d){h+=devRow(d)+'<div class="muted" style="padding-left:4px">下次到期 '+fmt(devDue(d))+'</div>';});
-  h+='<div class="panel" style="background:#f4f6f9;margin-top:10px"><b>主管派工（鄧主管）</b><div class="row" style="margin-top:6px"><select id="mEng">'+engOpts(ENG[1])+'</select><select id="mDate"></select>'+
+  h+='<div class="panel" style="background:#f4f6f9;margin-top:10px"><b>主管派工（鄧經理）</b><div class="row" style="margin-top:6px"><select id="mEng">'+engOpts(ENG[3])+'</select><select id="mDate"></select>'+
     '<button class="ok small" data-assignsite="'+id+'">派這家 30 天內要保養的設備</button></div><div id="mMsg" class="muted"></div></div>';
   openModal(h,id);fillDateSel($('mDate'));
 }
