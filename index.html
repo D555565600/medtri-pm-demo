@@ -68,6 +68,7 @@ mark{background:#ffe58a;padding:0 1px}
   <a href="#" data-tab="team">工程師排程</a>
   <a href="#" data-tab="route">今日路線</a>
   <a href="#" data-tab="recs">保養紀錄</a>
+  <a href="#" data-tab="cost">成本分析</a>
   <a href="#" data-tab="parts">車上備料</a>
   <a href="#" data-tab="catalog">產品線查詢</a>
   <a href="#" data-tab="fix">故障排除</a>
@@ -160,6 +161,26 @@ mark{background:#ffe58a;padding:0 1px}
     <div class="c"><div class="panel"><h2>料件用量（依目前篩選）</h2><div id="recParts"></div></div></div>
   </div>
   <div class="panel hide" id="recCsvBox"><textarea id="recCsv"></textarea></div>
+</section>
+
+<!-- 成本分析 -->
+<section id="tab-cost" class="hide">
+  <div class="panel"><h2>保養成本分析</h2><div class="row">
+      <select id="costRange"><option value="30">近 30 天</option><option value="90" selected>近 90 天</option><option value="365">近一年</option><option value="9999">全部</option></select>
+      <select id="costType"></select><select id="costEng"></select></div>
+    <p class="muted">每筆成本 = 倉庫領料（數量 × 單價）＋ 人力（工時 × 每小時成本）＋ 交通（油資＋停車＋過路）。單價、人力成本、油資都是<b>示範假設</b>，可在下方修改；歷史紀錄為示範資料。</p></div>
+  <div class="stats" id="costStats"></div>
+  <p id="costSum" style="margin:8px 4px"></p>
+  <div class="cols">
+    <div class="c"><div class="panel"><h2>各機型平均（每台每次）</h2><div id="costModel"></div></div>
+      <div class="panel"><h2>工程師交通費用</h2><div id="costEngT"></div></div></div>
+    <div class="c"><div class="panel"><h2>倉庫領料（依目前篩選）</h2><div id="costParts"></div></div></div>
+  </div>
+  <div class="panel"><h2>成本設定</h2>
+    <div class="row"><span>人力成本</span><input type="number" id="cfgLabor" min="0" style="width:90px"><span>元／小時</span><span>油資</span><input type="number" id="cfgFuel" min="0" step="0.1" style="width:80px"><span>元／公里</span><button class="sub" id="btnCfgSave">儲存</button></div>
+    <h3>料件料號與單價（示範）</h3><div id="priceList"></div>
+    <div class="row" style="margin-top:6px"><button class="sub" id="btnPriceSave">儲存單價</button><button class="sub" id="btnPriceReset">恢復示範單價</button><span id="priceMsg" class="muted"></span></div>
+  </div>
 </section>
 
 <!-- 車上備料 -->
@@ -554,9 +575,9 @@ function renderParts(){
   ROUTE.forEach(function(x){if(x.tomorrow)return;x.devs.forEach(function(d){var m=MBYID[d.model];if(!m)return;byModel[m.model]=(byModel[m.model]||0)+1;m.kit.forEach(function(p){var key=m.brand.split(' ')[0]+'｜'+p;need[key]=(need[key]||0)+1;});});});
   var keys=Object.keys(need).sort();
   if(!keys.length){$('partsList').innerHTML='<p class="muted">今日路線沒有設備。</p>';return;}
-  var h='<p>今日要保養：'+Object.keys(byModel).map(function(k){return esc(k)+' ×'+byModel[k];}).join('、')+'</p><table><tr><th style="width:36px">✓</th><th>品牌｜料件</th><th>需要</th><th>建議多帶</th></tr>';
-  keys.forEach(function(k){var n=need[k];h+='<tr><td><input type="checkbox" class="chk"></td><td>'+esc(k)+'</td><td>'+n+'</td><td>'+(n+Math.max(1,Math.round(n*0.2)))+'</td></tr>';});
-  h+='</table><p class="muted">另外固定帶：手套、酒精與消毒液、生物危害垃圾袋、三用電表、溫度計、手電筒、工具組、保養紀錄單。</p>';
+  var h='<p>今日要保養：'+Object.keys(byModel).map(function(k){return esc(k)+' ×'+byModel[k];}).join('、')+'</p><table><tr><th style="width:36px">✓</th><th>品牌｜料件</th><th>需要</th><th>建議多帶</th><th>單價</th><th>領料金額</th></tr>',tot=0;
+  keys.forEach(function(k){var n=need[k];var pn=k.split('｜')[1],u=price(pn),nn=n+Math.max(1,Math.round(n*0.2));tot+=u*n;h+='<tr><td><input type="checkbox" class="chk"></td><td>'+esc(k)+'</td><td>'+n+'</td><td>'+nn+'</td><td>'+nt(u)+'</td><td>'+nt(u*n)+'</td></tr>';});
+  h+='<tr><th colspan="5">今日預估領料金額（依需要數量）</th><th>'+nt(tot)+'</th></tr></table><p class="muted">另外固定帶：手套、酒精與消毒液、生物危害垃圾袋、三用電表、溫度計、手電筒、工具組、保養紀錄單。</p>';
   $('partsList').innerHTML=h;
 }
 
@@ -924,6 +945,29 @@ function initFix(){
 
 
 /* ================= 保養／維修紀錄資料庫 ================= */
+/* ---------- 料件單價、保養項目、成本（全部是示範假設） ---------- */
+var PRICE0={'SPR 座清潔組':1200,'光學讀頭校正':2500,'溫度檢測探棒':3800,'門片 O 環':350,'光學校正條':900,'光學檢查卡匣':1500,'冷卻探針清潔組':1100,'標準液組':2200,'品管液組':1800,
+  '分析管柱':18000,'線上濾芯':1500,'泵浦密封圈':2400,'溶血洗淨液':800,'校正液 Calibrator 80':3200,'取樣針':4500,'蠕動泵管組':2600,'清洗液':600,'系統液濾芯':1300,'品管液':1600,
+  '吸樣針':3900,'洗盤頭':5200,'濾光片檢查盤':2000,'推片刀片':700,'染色槽清潔組':900,'管路組':2800,'流動槽清潔液':750,'鞘液濾芯':1400,'試紙收集盒':450,'試紙托盤':1200};
+var PRICE=LS.get('mt_price',{});
+function price(n){return PRICE[n]!=null?PRICE[n]:(PRICE0[n]!=null?PRICE0[n]:0);}
+var PNO={};(function(){var all={};MODELS.forEach(function(m){m.kit.forEach(function(k){all[k]=1;});});Object.keys(all).sort().forEach(function(k,i){PNO[k]='PM-'+(1001+i);});})();
+function allPartNames(){var a={};MODELS.forEach(function(m){m.kit.forEach(function(k){a[k]=1;});});Object.keys(PRICE).forEach(function(k){a[k]=1;});return Object.keys(a).sort();}
+var COSTCFG=LS.get('mt_cost',{labor:600,fuelkm:3});
+function nt(v){v=Math.round(v||0);return '$'+String(v).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
+function recCost(x){var p=0;(x.parts||[]).forEach(function(q){p+=price(q.n)*(q.q||1);});var lab=(x.hours||0)*COSTCFG.labor,tr=(x.fuel||0)+(x.park||0)+(x.toll||0);return {parts:p,labor:lab,travel:tr,total:p+lab+tr};}
+var CHECK={
+ '糖化血色素':['檢查管路、接頭有無滲漏或結晶','紀錄泵浦壓力並與上次比較','依注射次數更換線上濾芯／分析管柱','確認溶液量、批號與效期','清潔取樣針與洗淨槽','執行校正（Calibration）','跑高低值品管液，結果在範圍內','備份儀器資料與錯誤日誌'],
+ '尿液分析':['清潔試紙托盤與送紙機構','清潔吸樣針與洗淨槽','更換蠕動泵管','用光學校正條檢查讀頭','檢查清洗液與廢液管路','跑品管試紙，結果在範圍內','檢查印表機與條碼讀取'],
+ '免疫分析':['清潔反應座（SPR 座／反應槽）','檢查取樣針有無彎曲、堵塞','溫度檢測（孵育區）','光學讀頭校正','檢查管路與泵浦','跑品管，結果在範圍內','檢查軟體版本與錯誤日誌'],
+ 'ELISA':['清潔吸樣針與洗盤頭','檢查濾光片','孵育溫度檢測','洗盤殘留量測試','跑品管，結果在範圍內'],
+ '血液學':['清潔流動槽','更換鞘液濾芯','清潔吸樣針','檢查推片與染色單元','背景值檢查','跑品管，結果在範圍內'],
+ '滲透壓':['清潔冷卻探針','以標準液校正','跑品管液，結果在範圍內','檢查冷卻溫度']
+};
+var CHECK_COMMON=['外觀清潔、電源與接地檢查','向客戶說明保養結果並確認運作正常'];
+function checkItems(m){return (CHECK[m&&m.cat]||[]).concat(CHECK_COMMON);}
+function ext(o,t){for(var k in t)if(t.hasOwnProperty(k))o[k]=t[k];return o;}
+
 var RTYPES=['定期保養','故障維修','校正','裝機','移機'];
 var RESULTS=['正常完成','待料再訪','需原廠支援'];
 var TCOLOR={'定期保養':'#2e8b57','故障維修':'#c0392b','校正':'#5b6abf','裝機':'#2a8c8c','移機':'#8e5ba8'};
@@ -933,8 +977,10 @@ function genRecs(){
   var out=[],r=rng(4242),n=0;
   SITES.forEach(function(s){s.devices.forEach(function(d){
     var m=MBYID[d.model];if(!m)return;
+    var big=(s.type||'').indexOf('診所')<0;
+    function tv(){var km=6+Math.round(r()*34);return {km:km,fuel:Math.round(km*COSTCFG.fuelkm),park:big?40+Math.round(r()*8)*20:Math.round(r()*2)*20,toll:r()<0.1?40:0};}
     function pm(date){var parts=[];m.kit.forEach(function(k){if(r()<0.6)parts.push({n:k,q:1});});
-      out.push({id:'R'+(n++),devId:d.id,siteId:s.id,date:date,type:'定期保養',eng:ENG[1+Math.floor(r()*4)],parts:parts,code:'',note:'依保養程序完成清潔、更換耗材、校正，品管液結果在範圍內。',hours:m.hours,result:'正常完成',demo:true});}
+      out.push({id:'R'+(n++),devId:d.id,siteId:s.id,date:date,type:'定期保養',eng:ENG[1+Math.floor(r()*4)],parts:parts,code:'',note:'依保養程序完成清潔、更換耗材、校正，品管液結果在範圍內。',hours:m.hours,result:'正常完成',demo:true,items:checkItems(m),itemsAll:checkItems(m).length});ext(out[out.length-1],tv());}
     var last=parseD(d.last);pm(d.last);
     if(!IS_DEMO)return;
     var prev=addMonths(last,-m.pm);pm(fmt(prev));
@@ -942,7 +988,7 @@ function genRecs(){
       var rules=FIX[m.cat]||[],ru=rules[Math.floor(r()*rules.length)];
       var dt=new Date(prev.getTime()+Math.floor(r()*Math.max(1,(last-prev)/DAY))*DAY);
       out.push({id:'R'+(n++),devId:d.id,siteId:s.id,date:fmt(dt),type:'故障維修',eng:ENG[1+Math.floor(r()*4)],
-        parts:[{n:m.kit[Math.floor(r()*m.kit.length)],q:1}],code:'',note:ru?('客戶反映：'+ru.t+'。處理：'+ru.s[0]+'，測試正常。'):'故障排除完成。',hours:1.5,result:'正常完成',demo:true});
+        parts:[{n:m.kit[Math.floor(r()*m.kit.length)],q:1}],code:'',note:ru?('客戶反映：'+ru.t+'。處理：'+ru.s[0]+'，測試正常。'):'故障排除完成。',hours:1.5,result:'正常完成',demo:true});ext(out[out.length-1],tv());
     }
   });});
   return out;
@@ -971,21 +1017,37 @@ function devHistory(id){
 var FORM_DEV=null;
 function recForm(id,type){
   var d=devById(id),s=siteOfDev(id);if(!d||!s)return;FORM_DEV=id;
-  var m=MBYID[d.model]||{model:d.model,kit:[]};
+  var m=MBYID[d.model]||{model:d.model,kit:[]},pm=type==='定期保養';
   var q='<option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>';
+  var hrs=[0.5,1,1.5,2,3,4,6],hv=m.hours||1;if(hrs.indexOf(hv)<0)hrs.push(hv);hrs.sort(function(a,b){return a-b;});
   var h='<h2>新增紀錄：'+esc(m.model)+'</h2><p class="muted">'+esc(s.name)+'・序號 '+esc(d.sn)+'</p>'+
    '<table><tr><th style="width:90px">日期</th><td><input type="date" id="fDate" value="'+fmt(today())+'"></td></tr>'+
    '<tr><th>類型</th><td><select id="fType">'+RTYPES.map(function(t){return '<option'+(t===type?' selected':'')+'>'+t+'</option>';}).join('')+'</select></td></tr>'+
    '<tr><th>工程師</th><td><select id="fEng">'+engOpts(ME)+'</select></td></tr>'+
-   '<tr><th>更換料件</th><td>'+m.kit.map(function(k,i){return '<div style="padding:3px 0"><label><input type="checkbox" class="chk fPart" data-n="'+esc(k)+'"'+(type==='定期保養'?' checked':'')+'> '+esc(k)+'</label> <select class="fQty" data-i="'+i+'">'+q+'</select></div>';}).join('')+
-     '<input type="text" id="fOther" style="width:100%;margin-top:4px" placeholder="其他料件，例：電磁閥×1, 保險絲×2"></td></tr>'+
+   '<tr><th>保養項目</th><td>'+checkItems(m).map(function(k){return '<div style="padding:2px 0"><label><input type="checkbox" class="chk fItem" data-n="'+esc(k)+'"'+(pm?' checked':'')+'> '+esc(k)+'</label></div>';}).join('')+'</td></tr>'+
+   '<tr><th>倉庫領料</th><td>'+m.kit.map(function(k){return '<div style="padding:3px 0"><label><input type="checkbox" class="chk fPart" data-n="'+esc(k)+'"'+(pm?' checked':'')+'> '+esc(k)+'</label> <select class="fQty">'+q+'</select> <small class="muted">'+(PNO[k]||'')+'・單價 '+nt(price(k))+'</small></div>';}).join('')+
+     '<input type="text" id="fOther" style="width:100%;margin-top:4px" placeholder="其他料件，例：電磁閥×1, 保險絲×2（到成本分析設定單價）"></td></tr>'+
    '<tr><th>故障碼</th><td><input type="text" id="fCode" style="width:100%" placeholder="維修時填，例：E-101"></td></tr>'+
-   '<tr><th>處理內容</th><td><textarea id="fNote" style="min-height:80px;font-family:inherit;font-size:15px" placeholder="發現什麼、做了什麼、測試結果">'+(type==='定期保養'?'依保養程序完成清潔、更換耗材、校正，品管液結果在範圍內。':'')+'</textarea></td></tr>'+
-   '<tr><th>工時</th><td><select id="fHours">'+(function(){var a=[0.5,1,1.5,2,3,4,6],hv=m.hours||1;if(a.indexOf(hv)<0)a.push(hv);return a.sort(function(x,y){return x-y;});})().map(function(v){return '<option'+(v===(m.hours||1)?' selected':'')+'>'+v+'</option>';}).join('')+'</select> 小時</td></tr>'+
+   '<tr><th>處理內容</th><td><textarea id="fNote" style="min-height:80px;font-family:inherit;font-size:15px" placeholder="發現什麼、做了什麼、測試結果">'+(pm?'依保養程序完成清潔、更換耗材、校正，品管液結果在範圍內。':'')+'</textarea></td></tr>'+
+   '<tr><th>工時</th><td><select id="fHours">'+hrs.map(function(v){return '<option'+(v===hv?' selected':'')+'>'+v+'</option>';}).join('')+'</select> 小時</td></tr>'+
+   '<tr><th>交通</th><td>里程 <input type="number" id="fKm" min="0" style="width:70px"> 公里　油資 <input type="number" id="fFuel" min="0" style="width:80px"> 元<br>停車 <input type="number" id="fPark" min="0" style="width:80px"> 元　過路 <input type="number" id="fToll" min="0" style="width:70px"> 元'+
+     '<div class="muted">輸入里程會自動算油資（每公里 '+COSTCFG.fuelkm+' 元，可改）。同一家醫院保養多台，交通費只要填在其中一筆。</div></td></tr>'+
    '<tr><th>結果</th><td><select id="fResult">'+RESULTS.map(function(t){return '<option>'+t+'</option>';}).join('')+'</select></td></tr>'+
    '<tr><th>客戶簽名</th><td><canvas id="sig" width="300" height="110" style="border:1px dashed #9aa7b4;border-radius:6px;background:#fff;touch-action:none;max-width:100%"></canvas><br><button class="small sub" id="btnSigClear">清除簽名</button></td></tr></table>'+
+   '<div class="note" id="fCost" style="margin-top:8px"></div>'+
    '<div class="row" style="margin-top:10px"><button class="ok" id="btnRecSave">💾 儲存紀錄</button><button class="sub" data-hist="'+id+'">取消</button></div>';
-  openModal(h,s.id);initSig();
+  openModal(h,s.id);initSig();updCost();
+}
+function readForm(){
+  var parts=[],items=[],cbs=document.querySelectorAll('.fPart'),qs=document.querySelectorAll('.fQty'),its=document.querySelectorAll('.fItem');
+  for(var i=0;i<cbs.length;i++)if(cbs[i].checked)parts.push({n:cbs[i].getAttribute('data-n'),q:+qs[i].value});
+  for(var j=0;j<its.length;j++)if(its[j].checked)items.push(its[j].getAttribute('data-n'));
+  $('fOther').value.split(/[,，、]/).forEach(function(t){t=t.trim();if(!t)return;var mm=t.match(/^(.*?)[×xX*]\s*(\d+)$/);parts.push(mm?{n:mm[1].trim(),q:+mm[2]}:{n:t,q:1});});
+  return {parts:parts,items:items,itemsAll:its.length,hours:+$('fHours').value,km:+$('fKm').value||0,fuel:+$('fFuel').value||0,park:+$('fPark').value||0,toll:+$('fToll').value||0};
+}
+function updCost(){
+  if(!$('fCost'))return;var f=readForm(),c=recCost(f);
+  $('fCost').innerHTML='本筆成本：料件 '+nt(c.parts)+' ＋ 人力 '+nt(c.labor)+'（'+f.hours+' 小時 × '+nt(COSTCFG.labor)+'）＋ 交通 '+nt(c.travel)+' ＝ <b>'+nt(c.total)+'</b>';
 }
 var SIG_DIRTY=false;
 function initSig(){
@@ -1001,12 +1063,9 @@ function initSig(){
 function sigClear(){var c=$('sig');if(c){c.getContext('2d').clearRect(0,0,c.width,c.height);SIG_DIRTY=false;}}
 function recSave(){
   var id=FORM_DEV,s=siteOfDev(id);if(!s)return;
-  var parts=[],cbs=document.querySelectorAll('.fPart'),qs=document.querySelectorAll('.fQty');
-  for(var i=0;i<cbs.length;i++)if(cbs[i].checked)parts.push({n:cbs[i].getAttribute('data-n'),q:+qs[i].value});
-  $('fOther').value.split(/[,，、]/).forEach(function(t){t=t.trim();if(!t)return;var mm=t.match(/^(.*?)[×xX*]\s*(\d+)$/);parts.push(mm?{n:mm[1].trim(),q:+mm[2]}:{n:t,q:1});});
   var date=$('fDate').value||fmt(today());
   if(!parseD(date)){alert('日期格式不對');return;}
-  var rec={id:'U'+Date.now(),devId:id,siteId:s.id,date:fmt(parseD(date)),type:$('fType').value,eng:$('fEng').value,parts:parts,code:$('fCode').value.trim(),note:$('fNote').value.trim(),hours:+$('fHours').value,result:$('fResult').value,sig:SIG_DIRTY?$('sig').toDataURL('image/png'):''};
+  var rec=ext({id:'U'+Date.now(),devId:id,siteId:s.id,date:fmt(parseD(date)),type:$('fType').value,eng:$('fEng').value,code:$('fCode').value.trim(),note:$('fNote').value.trim(),result:$('fResult').value,sig:SIG_DIRTY?$('sig').toDataURL('image/png'):''},readForm());
   RECS_USER.push(rec);
   try{LS.set('mt_recs',RECS_USER);}catch(e){}
   if(rec.type==='定期保養'&&rec.result==='正常完成'){var cur=DONE[id];if(!cur||cur<rec.date){DONE[id]=rec.date;LS.set('mt_done',DONE);}}
@@ -1016,16 +1075,21 @@ function recSave(){
 /* ---------- 紀錄單（可列印） ---------- */
 function recView(rid,fresh){
   var x=null;allRecs().forEach(function(r){if(r.id===rid)x=r;});if(!x)return;
-  var d=devById(x.devId),s=siteById(x.siteId),m=d&&MBYID[d.model]||{model:'',brand:''};
+  var d=devById(x.devId),s=siteById(x.siteId),m=d&&MBYID[d.model]||{model:'',brand:''},c=recCost(x);
+  var items=x.items||[],all=x.itemsAll||items.length;
   var h=(fresh?'<p style="color:#2e8b57"><b>✅ 已儲存。</b>'+(x.type==='定期保養'&&x.result==='正常完成'?'下次到期日已更新為 '+fmt(devDue(d))+'。':'')+'</p>':'')+
    '<h2>'+esc(x.type)+'紀錄單</h2><table>'+
    '<tr><th style="width:90px">客戶</th><td>'+esc(s?s.name:'')+'（'+esc(s?s.area:'')+'）</td></tr>'+
    '<tr><th>設備</th><td>'+esc(m.brand)+' '+esc(m.model)+'・序號 '+esc(d?d.sn:'')+'</td></tr>'+
    '<tr><th>日期</th><td>'+x.date+'</td></tr><tr><th>工程師</th><td>'+esc(x.eng)+'</td></tr>'+
-   '<tr><th>更換料件</th><td>'+(x.parts&&x.parts.length?'<table>'+x.parts.map(function(p){return '<tr><td>'+esc(p.n)+'</td><td style="width:50px">×'+p.q+'</td></tr>';}).join('')+'</table>':'無')+'</td></tr>'+
+   (items.length?'<tr><th>保養項目</th><td>完成 '+items.length+'／'+all+' 項'+items.map(function(k){return '<div>✔ '+esc(k)+'</div>';}).join('')+'</td></tr>':'')+
+   '<tr><th>倉庫領料</th><td>'+(x.parts&&x.parts.length?'<table><tr><th>料號</th><th>品名</th><th>數量</th><th>單價</th><th>小計</th></tr>'+x.parts.map(function(p){var u=price(p.n);return '<tr><td><small>'+(PNO[p.n]||'—')+'</small></td><td>'+esc(p.n)+'</td><td>'+p.q+'</td><td>'+nt(u)+'</td><td>'+nt(u*p.q)+'</td></tr>';}).join('')+'</table>':'無')+'</td></tr>'+
    (x.code?'<tr><th>故障碼</th><td>'+esc(x.code)+'</td></tr>':'')+
    '<tr><th>處理內容</th><td style="white-space:pre-wrap">'+esc(x.note||'')+'</td></tr>'+
-   '<tr><th>工時</th><td>'+(x.hours||'')+' 小時</td></tr><tr><th>結果</th><td>'+esc(x.result||'')+'</td></tr>'+
+   '<tr><th>工時</th><td>'+(x.hours||'')+' 小時</td></tr>'+
+   '<tr><th>交通</th><td>'+(x.km||0)+' 公里・油資 '+nt(x.fuel)+'・停車 '+nt(x.park)+'・過路 '+nt(x.toll)+'</td></tr>'+
+   '<tr><th>成本</th><td>料件 '+nt(c.parts)+' ＋ 人力 '+nt(c.labor)+' ＋ 交通 '+nt(c.travel)+' ＝ <b>'+nt(c.total)+'</b></td></tr>'+
+   '<tr><th>結果</th><td>'+esc(x.result||'')+'</td></tr>'+
    '<tr><th>客戶簽名</th><td>'+(x.sig?'<img src="'+x.sig+'" style="max-width:300px">':'<span class="muted">'+(x.demo?'（示範資料）':'未簽名')+'</span>')+'</td></tr></table>'+
    '<div class="row noprint" style="margin-top:10px"><button class="sub" id="btnRecPrint">🖨 列印／存 PDF</button><button class="sub" data-hist="'+x.devId+'">回設備履歷</button></div>';
   openModal(h,x.siteId);
@@ -1054,9 +1118,9 @@ function renderRecs(){
   $('recParts').innerHTML=ks.length?'<table><tr><th>料件</th><th>數量</th></tr>'+ks.map(function(k){return '<tr><td>'+esc(k)+'</td><td>'+parts[k]+'</td></tr>';}).join('')+'</table>':'<p class="muted">沒有料件紀錄。</p>';
 }
 function recCsv(){
-  var out=['日期,客戶,區域,機型,序號,類型,工程師,更換料件,故障碼,處理內容,工時,結果'];
+  var out=['日期,客戶,區域,機型,序號,類型,工程師,更換料件,故障碼,處理內容,工時,結果,里程,油資,停車,過路,料件成本,人力成本,交通成本,合計'];
   filteredRecs().forEach(function(x){var d=devById(x.devId),s=siteById(x.siteId),m=d&&MBYID[d.model];
-    out.push([x.date,s?s.name:'',s?s.area:'',m?m.model:'',d?d.sn:'',x.type,x.eng,partsStr(x.parts),x.code||'',String(x.note||'').replace(/[\r\n,]/g,' '),x.hours||'',x.result||''].join(','));});
+    out.push([x.date,s?s.name:'',s?s.area:'',m?m.model:'',d?d.sn:'',x.type,x.eng,partsStr(x.parts),x.code||'',String(x.note||'').replace(/[\r\n,]/g,' '),x.hours||'',x.result||'',x.km||0,x.fuel||0,x.park||0,x.toll||0].concat((function(c){return [Math.round(c.parts),Math.round(c.labor),Math.round(c.travel),Math.round(c.total)];})(recCost(x))).join(','));});
   $('recCsvBox').classList.remove('hide');$('recCsv').value=out.join('\n');$('recCsv').focus();$('recCsv').select();
 }
 function initRecs(){
@@ -1064,6 +1128,48 @@ function initRecs(){
   $('recEng').innerHTML='<option value="">全部工程師</option>'+ENG.map(function(e){return '<option>'+esc(e)+'</option>';}).join('');
   $('recQ').addEventListener('input',renderRecs);['recType','recEng','recRange'].forEach(function(k){$(k).addEventListener('change',renderRecs);});
   $('btnRecCsv').addEventListener('click',recCsv);
+}
+
+/* ---------- 成本分析 ---------- */
+function costRecs(){var days=+$('costRange').value,from=dayStr(-days),ty=$('costType').value,en=$('costEng').value;
+  return allRecs().filter(function(x){return x.date>=from&&(!ty||x.type===ty)&&(!en||x.eng===en);});}
+function renderCost(){
+  var L=costRecs(),n=L.length,T={h:0,p:0,l:0,t:0,all:0},bm={},bp={},be={};
+  L.forEach(function(x){var c=recCost(x),d=devById(x.devId),m=d&&MBYID[d.model];
+    T.h+=x.hours||0;T.p+=c.parts;T.l+=c.labor;T.t+=c.travel;T.all+=c.total;
+    var k=m?m.model:'其他',o=bm[k]||(bm[k]={n:0,h:0,p:0,t:0,all:0});o.n++;o.h+=x.hours||0;o.p+=c.parts;o.t+=c.travel;o.all+=c.total;
+    (x.parts||[]).forEach(function(q){bp[q.n]=(bp[q.n]||0)+(q.q||1);});
+    var e=be[x.eng]||(be[x.eng]={n:0,km:0,f:0,pk:0,tl:0});e.n++;e.km+=x.km||0;e.f+=x.fuel||0;e.pk+=x.park||0;e.tl+=x.toll||0;});
+  function av(v){return n?v/n:0;}
+  $('costStats').innerHTML=stat('s-ok',av(T.h).toFixed(1),'平均每台工時（小時）')+stat('s-month',nt(av(T.p)),'平均料件')+stat('s-soon',nt(av(T.t)),'平均交通')+stat('s-over',nt(av(T.all)),'平均每台總成本');
+  $('costSum').innerHTML='共 <b>'+n+'</b> 筆・總工時 '+Math.round(T.h)+' 小時・料件 '+nt(T.p)+'・人力 '+nt(T.l)+'・交通 '+nt(T.t)+'・合計 <b>'+nt(T.all)+'</b>';
+  var ks=Object.keys(bm).sort(function(a,b){return bm[b].n-bm[a].n;});
+  $('costModel').innerHTML=ks.length?'<table><tr><th>機型</th><th>筆數</th><th>工時</th><th>料件</th><th>交通</th><th>合計</th></tr>'+ks.map(function(k){var o=bm[k];return '<tr><td>'+esc(k)+'</td><td>'+o.n+'</td><td>'+(o.h/o.n).toFixed(1)+'</td><td>'+nt(o.p/o.n)+'</td><td>'+nt(o.t/o.n)+'</td><td><b>'+nt(o.all/o.n)+'</b></td></tr>';}).join('')+'</table>':'<p class="muted">沒有紀錄。</p>';
+  var ps=Object.keys(bp).sort(function(a,b){return price(b)*bp[b]-price(a)*bp[a];}),sum=0;
+  var h='<table><tr><th>料號</th><th>品名</th><th>數量</th><th>單價</th><th>金額</th></tr>';
+  ps.forEach(function(k){var a=price(k)*bp[k];sum+=a;h+='<tr><td><small>'+(PNO[k]||'—')+'</small></td><td>'+esc(k)+'</td><td>'+bp[k]+'</td><td>'+(price(k)?nt(price(k)):'<span style="color:#c0392b">未設定</span>')+'</td><td>'+nt(a)+'</td></tr>';});
+  h+='<tr><th colspan="4">合計</th><th>'+nt(sum)+'</th></tr></table>';
+  $('costParts').innerHTML=ps.length?h:'<p class="muted">沒有領料。</p>';
+  var es=Object.keys(be);
+  $('costEngT').innerHTML=es.length?'<table><tr><th>工程師</th><th>筆數</th><th>里程</th><th>油資</th><th>停車</th><th>過路</th><th>合計</th></tr>'+es.map(function(k){var e=be[k];return '<tr><td>'+esc(k)+'</td><td>'+e.n+'</td><td>'+e.km+'</td><td>'+nt(e.f)+'</td><td>'+nt(e.pk)+'</td><td>'+nt(e.tl)+'</td><td><b>'+nt(e.f+e.pk+e.tl)+'</b></td></tr>';}).join('')+'</table>':'<p class="muted">沒有紀錄。</p>';
+}
+function renderPriceList(){
+  $('priceList').innerHTML='<table><tr><th>料號</th><th>品名</th><th>單價（元）</th></tr>'+allPartNames().map(function(k){return '<tr><td><small>'+(PNO[k]||'—')+'</small></td><td>'+esc(k)+'</td><td><input type="number" min="0" class="pPrice" data-n="'+esc(k)+'" value="'+price(k)+'" style="width:100px"></td></tr>';}).join('')+'</table>';
+}
+function initCost(){
+  $('costType').innerHTML='<option value="">全部類型</option>'+RTYPES.map(function(t){return '<option>'+t+'</option>';}).join('');
+  $('costEng').innerHTML='<option value="">全部工程師</option>'+ENG.map(function(e){return '<option>'+esc(e)+'</option>';}).join('');
+  ['costRange','costType','costEng'].forEach(function(k){$(k).addEventListener('change',renderCost);});
+  $('cfgLabor').value=COSTCFG.labor;$('cfgFuel').value=COSTCFG.fuelkm;
+  $('btnCfgSave').addEventListener('click',function(){COSTCFG={labor:+$('cfgLabor').value||0,fuelkm:+$('cfgFuel').value||0};LS.set('mt_cost',COSTCFG);$('priceMsg').textContent='已儲存成本設定。';renderCost();});
+  $('btnPriceSave').addEventListener('click',function(){var ins=document.querySelectorAll('.pPrice');PRICE={};
+    for(var i=0;i<ins.length;i++){var k=ins[i].getAttribute('data-n'),v=+ins[i].value||0;if(v!==PRICE0[k])PRICE[k]=v;}
+    LS.set('mt_price',PRICE);$('priceMsg').textContent='已儲存單價。';renderCost();});
+  $('btnPriceReset').addEventListener('click',function(){PRICE={};try{localStorage.removeItem('mt_price');}catch(e){}renderPriceList();$('priceMsg').textContent='已恢復示範單價。';renderCost();});
+  renderPriceList();
+  var mb=$('modalBox');
+  mb.addEventListener('input',function(e){if(!$('fCost'))return;if(e.target.id==='fKm')$('fFuel').value=Math.round((+$('fKm').value||0)*COSTCFG.fuelkm)||'';updCost();});
+  mb.addEventListener('change',updCost);
 }
 
 /* ---------- 資料匯入匯出 ---------- */
@@ -1104,9 +1210,9 @@ function openModal(h,sid){$('modalBox').innerHTML=h+'<div style="text-align:righ
 
 /* ---------- 切頁與事件 ---------- */
 var CUR='near';
-function show(tab){CUR=tab;['near','team','route','recs','parts','catalog','fix','data'].forEach(function(t){$('tab-'+t).classList[t===tab?'remove':'add']('hide');});
+function show(tab){CUR=tab;['near','team','route','recs','cost','parts','catalog','fix','data'].forEach(function(t){$('tab-'+t).classList[t===tab?'remove':'add']('hide');});
   var as=$('nav').getElementsByTagName('a');for(var i=0;i<as.length;i++)as[i].className=as[i].getAttribute('data-tab')===tab?'on':'';refresh();window.scrollTo(0,0);}
-function refresh(){if(CUR==='team')renderTeam();else if(CUR==='near')renderNear();else if(CUR==='route')renderRoute();else if(CUR==='recs')renderRecs();else if(CUR==='parts'){buildRoute();renderParts();}else if(CUR==='catalog')renderCatalog();else if(CUR==='data')summary();}
+function refresh(){if(CUR==='team')renderTeam();else if(CUR==='near')renderNear();else if(CUR==='route')renderRoute();else if(CUR==='recs')renderRecs();else if(CUR==='cost')renderCost();else if(CUR==='parts'){buildRoute();renderParts();}else if(CUR==='catalog')renderCatalog();else if(CUR==='data')summary();}
 
 function init(){
   $('selBase').innerHTML=BASES.map(function(b,i){return '<option value="'+i+'">'+esc(b.n)+'</option>';}).join('');
@@ -1148,7 +1254,7 @@ function init(){
       function(err){$('geoMsg').textContent='無法取得位置（'+(err.code===1?'未允許定位':'訊號不足')+'），請改選出發據點。';},{enableHighAccuracy:true,timeout:15000,maximumAge:60000});
   });
   $('catQ').addEventListener('input',renderCatalog);$('catCat').addEventListener('change',renderCatalog);
-  initFix();initRecs();
+  initFix();initRecs();initCost();
   $('btnImport').addEventListener('click',doImport);$('btnExport').addEventListener('click',doExport);
   $('btnSample').addEventListener('click',function(){$('csvBox').value='客戶名稱,類型,區域,緯度,經度,機型代碼,序號,上次保養日\n範例醫院,區域醫院,台北市中山區,25.0640,121.5330,HA8180,HA810001,2026-08-15\n範例醫院,區域醫院,台北市中山區,25.0640,121.5330,VIDAS30,VID20002,2026-06-01\n範例診所,診所,新北市板橋區,25.0115,121.4627,PCA1C,PCA30003,2026-01-10';});
   $('btnReset').addEventListener('click',function(){try{localStorage.removeItem('mt_sites');localStorage.removeItem('mt_done');}catch(e){}SITES=genDemo();IS_DEMO=true;DONE={};DEMO_RECS=null;try{localStorage.removeItem('mt_assign');}catch(e){}ASSIGN=genAssign();$('importMsg').textContent='已恢復示範資料。';summary();refresh();});
