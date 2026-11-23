@@ -130,10 +130,31 @@ h2{font-size:18px;margin:0 0 10px 0}
 <section id="tab-fix" class="hide">
   <div class="panel">
     <h2>故障排除助手</h2>
-    <div class="row"><select id="fixModel" class="grow"></select></div>
-    <div class="row" style="margin-top:6px"><input type="text" id="fixQ" class="grow" placeholder="輸入客戶描述，例如：壓力一直跳高、結果偏低、讀不到條碼"><button id="btnFix">查詢</button></div>
-    <div class="note" style="margin-top:8px">目前是<b>通用檢查方向</b>（依儀器原理整理），實際步驟一律以原廠 Service Manual 為準。<br>正式版：把原廠手冊放進公司內部知識庫，AI 只根據手冊回答並附頁碼；可拍螢幕錯誤碼或機器內部照片查詢；每次修好存成案例供全組共用。</div>
+    <div class="row"><span>機型</span><select id="fixModel" class="grow"></select></div>
+    <div class="row" style="margin-top:6px"><span>故障碼</span><input type="text" id="fixCode" class="grow" placeholder="螢幕上的錯誤碼或訊息，例：E-102、Pressure High"></div>
+    <div class="row" style="margin-top:6px"><textarea id="fixQ" style="min-height:70px;font-family:inherit;font-size:16px" placeholder="客戶怎麼描述問題？例如：壓力一直跳高、結果偏低、讀不到條碼"></textarea></div>
+    <div class="row" style="margin-top:6px">
+      <button class="sub" id="btnMic">🎤 語音輸入</button>
+      <label class="btn sub" for="filePhoto">📷 拍照／選照片</label>
+      <input type="file" id="filePhoto" accept="image/*" capture="environment" style="display:none">
+      <select id="photoKind"><option value="screen">照片是：螢幕錯誤碼</option><option value="inside">照片是：機器內部</option><option value="other">照片是：其他</option></select>
+      <button id="btnFix">🔍 查詢</button>
+    </div>
+    <div id="micMsg" class="muted"></div>
+    <div id="photoBox" class="hide" style="margin-top:8px"><img id="photoImg" style="max-width:100%;max-height:260px;border-radius:8px;border:1px solid #dde3ea"><br><button class="small sub" id="btnPhotoDel">移除照片</button></div>
+    <div class="note" style="margin-top:8px">查詢順序：① 本機<b>案例庫</b>（以前修好存下來的）→ ② 依儀器原理的<b>通用檢查方向</b> → ③ 有設定 AI 金鑰時，把照片、故障碼、描述交給 <b>AI 判讀</b>。實際步驟一律以原廠 Service Manual 為準。正式版會把原廠手冊放進公司內部知識庫，AI 只根據手冊回答並附頁碼。</div>
     <div id="fixOut"></div>
+  </div>
+  <div class="panel">
+    <h2>AI 設定</h2>
+    <p class="muted">AI 判讀照片要用 Anthropic API 金鑰（費用由金鑰帳戶支付，一次查詢約新台幣 1～3 元）。金鑰只存在這台裝置的瀏覽器裡，不會放進網頁程式碼。照片若拍到病人姓名或病歷號，請先裁掉。</p>
+    <div class="row"><input type="text" id="aiKey" class="grow" placeholder="sk-ant-…" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="sub" id="btnKeySave">儲存</button><button class="sub" id="btnKeyDel">清除</button></div>
+    <p id="aiKeyMsg" class="muted"></p>
+  </div>
+  <div class="panel">
+    <h2>案例庫（<span id="caseCount">0</span> 筆）</h2>
+    <p class="muted">每次修好按「存成案例」，下次同樣症狀或故障碼會先跳出來。正式版會存到公司伺服器，全組共用。</p>
+    <div id="caseList"></div>
   </div>
 </section>
 
@@ -299,7 +320,7 @@ function renderNear(){
   });
   $('nearList').innerHTML=h;
   drawMap($('nearMap'),list,R);
-  $('geoMsg').textContent='目前中心：'+ORIGIN.name;
+  if(!ORIGIN.gps)$('geoMsg').textContent='目前中心：'+ORIGIN.name;
 }
 function stat(c,n,t){return '<div class="stat '+c+'"><b>'+n+'</b><span>'+t+'</span></div>';}
 function devRow(d){
@@ -319,6 +340,7 @@ function drawMap(el,list,R){
     if(x>10&&x<W-10&&y>10&&y<H-10)svg+='<text x="'+x+'" y="'+y+'" font-size="11" fill="#c2ccd6" text-anchor="middle">'+d[0].substr(3)+'</text>';});
   list.forEach(function(it,i){var s=it.s,x=cx+(s.lng-ORIGIN.lng)*111.32*cosl*sc,y=cy-(s.lat-ORIGIN.lat)*110.57*sc;
     svg+='<g data-site="'+s.id+'"><circle cx="'+x+'" cy="'+y+'" r="9" fill="'+COLOR[siteWorst(s)]+'" stroke="#fff" stroke-width="2"/><text x="'+x+'" y="'+(y+4)+'" font-size="10" fill="#fff" text-anchor="middle" data-site="'+s.id+'">'+(i+1)+'</text></g>';});
+  if(ORIGIN.acc)svg+='<circle cx="'+cx+'" cy="'+cy+'" r="'+Math.max(9,ORIGIN.acc/1000*sc)+'" fill="#123a5c" fill-opacity=".12" stroke="#123a5c" stroke-opacity=".4"/>';
   svg+='<circle cx="'+cx+'" cy="'+cy+'" r="7" fill="#123a5c"/><text x="'+(cx+10)+'" y="'+(cy+4)+'" font-size="12" fill="#123a5c">我</text></svg>';
   el.innerHTML=svg;
 }
@@ -419,14 +441,117 @@ var FIX={
  '血液學':[{k:['推片','厚','染色','不均'],t:'推片／染色不良',s:['檢查推片刀片是否磨損','確認染液效期與液位','清潔染色槽']}],
  'ELISA':[{k:['洗','殘留','吸光','不準'],t:'洗盤或讀值異常',s:['檢查洗盤頭是否堵塞','跑濾光片檢查盤','確認孵育溫度']}]
 };
+var PHOTO=null; /* base64 jpeg（不含前綴） */
+var CASES=LS.get('mt_cases',[]);
+var LAST_AI='';
+function words(s){return String(s||'').toLowerCase().replace(/[，。、,.;；:：!！?？()（）\/]/g,' ').split(/\s+/).filter(function(w){return w.length>=2;});}
+function caseHits(mid,code,q){
+  var out=[],cw=String(code||'').toLowerCase().replace(/\s/g,''),qs=String(q||'').toLowerCase();
+  CASES.forEach(function(c,i){
+    var sc=0;
+    if(cw&&c.code&&c.code.toLowerCase().replace(/\s/g,'')===cw)sc+=5;
+    words(c.symptom).forEach(function(w){if(qs.indexOf(w)>=0)sc+=1;});
+    if(qs&&c.symptom&&String(c.symptom).toLowerCase().indexOf(qs)>=0)sc+=2;
+    if(sc>0){if(c.model===mid)sc+=2;out.push({c:c,i:i,sc:sc});}
+  });
+  out.sort(function(a,b){return b.sc-a.sc;});return out.slice(0,5);
+}
 function renderFix(){
-  var mid=$('fixModel').value,m=MBYID[mid],q=$('fixQ').value.trim().toLowerCase(),rules=FIX[m.cat]||[],hits=[];
-  rules.forEach(function(r){var sc=0;r.k.forEach(function(k){if(q&&q.indexOf(k.toLowerCase())>=0)sc++;});if(sc||!q)hits.push({r:r,sc:sc});});
-  hits.sort(function(a,b){return b.sc-a.sc;});
+  var mid=$('fixModel').value,m=MBYID[mid],q=$('fixQ').value.trim(),ql=q.toLowerCase(),code=$('fixCode').value.trim(),rules=FIX[m.cat]||[],hits=[];
   var h='<h2 style="margin-top:12px">'+esc(m.model)+'（'+esc(m.principle)+'）</h2>';
-  if(!hits.length)h+='<p class="muted">沒有對到常見問題。正式版會直接搜尋原廠手冊。</p>';
-  hits.forEach(function(x,i){h+='<div class="site"><h3>'+(i+1)+'. '+esc(x.r.t)+'</h3><ol>'+x.r.s.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ol><div class="muted">對照：原廠 Service Manual（正式版會顯示章節與頁碼）</div></div>';});
+  /* ① 案例庫 */
+  var ch=caseHits(mid,code,q);
+  if(ch.length){h+='<h3>① 案例庫：以前類似的狀況</h3>';ch.forEach(function(x){h+=caseCard(x.c,x.i);});}
+  /* ② 通用方向 */
+  rules.forEach(function(r){var sc=0;r.k.forEach(function(k){if(ql&&ql.indexOf(k.toLowerCase())>=0)sc++;});if(sc||!ql)hits.push({r:r,sc:sc});});
+  hits.sort(function(a,b){return b.sc-a.sc;});
+  h+='<h3>② 通用檢查方向</h3>';
+  if(!hits.length)h+='<p class="muted">沒有對到常見問題，建議用 AI 判讀或查原廠手冊。</p>';
+  hits.forEach(function(x,i){h+='<div class="site"><b>'+(i+1)+'. '+esc(x.r.t)+'</b><ol>'+x.r.s.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ol></div>';});
+  /* ③ AI */
+  h+='<h3>③ AI 判讀</h3><div id="aiOut">'+(getKey()?'<p class="muted">AI 判讀中…（約 10～40 秒）</p>':'<p class="muted">尚未設定 AI 金鑰（在下方「AI 設定」）。設定後可判讀照片中的錯誤碼、部件與異常。</p>')+'</div>';
+  h+='<div class="row" style="margin-top:6px"><button class="ok" id="btnSaveCase">💾 修好了，存成案例</button></div>';
   $('fixOut').innerHTML=h;
+  if(getKey()&&(q||code||PHOTO))askAI(m,code,q);
+  else if(getKey())$('aiOut').innerHTML='<p class="muted">請先輸入描述、故障碼或拍一張照片。</p>';
+}
+function caseCard(c,i){
+  var m=MBYID[c.model]||{model:c.model};
+  return '<div class="site"><b>'+esc(m.model)+(c.code?'｜故障碼 '+esc(c.code):'')+'</b> <span class="muted">'+esc(c.date)+'</span>'+
+    '<div class="muted">症狀：'+esc(c.symptom||'')+'</div><div style="white-space:pre-wrap;margin-top:4px">'+esc(c.fix||'')+'</div>'+
+    (c.thumb?'<img src="data:image/jpeg;base64,'+c.thumb+'" style="max-width:160px;margin-top:4px;border-radius:6px">':'')+
+    '<div><button class="small sub" data-delcase="'+i+'">刪除</button></div></div>';
+}
+function renderCases(){$('caseCount').textContent=CASES.length;$('caseList').innerHTML=CASES.length?CASES.map(caseCard).reverse().join(''):'<p class="muted">還沒有案例。</p>';}
+function saveCase(){
+  var fix=prompt('怎麼修好的？（例：更換線上濾芯後壓力恢復正常）\n留空會存 AI 的建議。','');
+  if(fix===null)return;
+  var c={model:$('fixModel').value,code:$('fixCode').value.trim(),symptom:$('fixQ').value.trim(),fix:fix||LAST_AI.slice(0,400),date:fmt(today()),thumb:''};
+  function done(){CASES.push(c);LS.set('mt_cases',CASES);renderCases();alert('已存成案例。');}
+  if(PHOTO){shrink('data:image/jpeg;base64,'+PHOTO,240,0.6,function(b){c.thumb=b;done();});}else done();
+}
+/* 照片：縮到最長邊 1280 */
+function shrink(src,max,q,cb){
+  var img=new Image();
+  img.onload=function(){var w=img.width,h=img.height,s=Math.min(1,max/Math.max(w,h));var cv=document.createElement('canvas');cv.width=Math.round(w*s);cv.height=Math.round(h*s);
+    cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);cb(cv.toDataURL('image/jpeg',q).split(',')[1]);};
+  img.onerror=function(){cb(null);};img.src=src;
+}
+function onPhoto(e){
+  var f=e.target.files&&e.target.files[0];if(!f)return;
+  var rd=new FileReader();
+  rd.onload=function(){shrink(rd.result,1280,0.82,function(b){if(!b){alert('照片讀取失敗');return;}PHOTO=b;$('photoImg').src='data:image/jpeg;base64,'+b;$('photoBox').classList.remove('hide');});};
+  rd.readAsDataURL(f);e.target.value='';
+}
+/* 語音 */
+var REC=null;
+function initMic(){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){$('btnMic').addEventListener('click',function(){$('micMsg').innerHTML='這台裝置的瀏覽器不支援網頁語音辨識。請點描述框，再按<b>鍵盤上的麥克風 🎤</b>用聽寫輸入（iPad／iPhone 都有）。';$('fixQ').focus();});return;}
+  $('btnMic').addEventListener('click',function(){
+    if(REC){REC.stop();return;}
+    REC=new SR();REC.lang='zh-TW';REC.interimResults=true;REC.continuous=false;
+    var base=$('fixQ').value?$('fixQ').value+' ':'';
+    REC.onresult=function(ev){var t='';for(var i=0;i<ev.results.length;i++)t+=ev.results[i][0].transcript;$('fixQ').value=base+t;};
+    REC.onerror=function(ev){$('micMsg').textContent='語音辨識失敗（'+ev.error+'），可改用鍵盤上的麥克風聽寫。';};
+    REC.onend=function(){REC=null;$('btnMic').textContent='🎤 語音輸入';$('micMsg').textContent='';};
+    REC.start();$('btnMic').textContent='⏹ 停止';$('micMsg').textContent='請說話…（例如：客戶說壓力一直跳高）';
+  });
+}
+/* AI（Anthropic Messages API） */
+function getKey(){return LS.get('mt_aikey','');}
+var SYS='你是醫療檢驗儀器（IVD）的現場維修助理，協助醫兆設備工程師在醫院檢驗科排除故障。用繁體中文回答，精簡、條列，工程師在現場用手機看。\n'+
+ '回答格式：\n【照片判讀】看到什麼（錯誤碼、訊息原文、部件名稱與狀態、異常跡象）；沒有照片就省略。\n【可能原因】依可能性排序，最多 4 項。\n【檢查步驟】由簡到繁、先不拆機的步驟，每步一行。\n【可能需要的料件】\n【注意】生物安全（先消毒、戴手套）與何時該停手聯絡原廠。\n'+
+ '規則：你手上沒有原廠 Service Manual，錯誤碼的正式定義如果照片或訊息裡沒寫，就明講「需對照原廠手冊確認」，不要編造錯誤碼意義或料號。照片中若出現病人姓名、病歷號等個資，不要轉述。';
+function askAI(m,code,q){
+  var kind=$('photoKind').value,content=[];
+  if(PHOTO)content.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:PHOTO}});
+  var t='機型：'+m.brand+' '+m.model+'（'+m.type+'，原理：'+m.principle+'）\n';
+  if(code)t+='故障碼／螢幕訊息：'+code+'\n';
+  if(q)t+='客戶描述：'+q+'\n';
+  if(PHOTO)t+='附上的照片是：'+({screen:'儀器螢幕（請讀出錯誤碼與訊息）',inside:'機器內部（請辨認部件並找異常，例如漏液、結晶、磨損、氣泡、鬆脫）',other:'現場照片'})[kind]+'\n';
+  t+='請協助排除。';
+  content.push({type:'text',text:t});
+  var body={model:'claude-opus-5-5',max_tokens:4000,output_config:{effort:'medium'},fallbacks:'default',system:SYS,messages:[{role:'user',content:content}]};
+  var x=new XMLHttpRequest();
+  x.open('POST','https://api.anthropic.com/v1/messages',true);
+  x.setRequestHeader('content-type','application/json');
+  x.setRequestHeader('x-api-key',getKey());
+  x.setRequestHeader('anthropic-version','2026-10-21');
+  x.setRequestHeader('anthropic-beta','server-side-fallback-2026-07-01');
+  x.setRequestHeader('anthropic-dangerous-direct-browser-access','true');
+  x.timeout=120000;
+  x.onload=function(){
+    var r=null;try{r=JSON.parse(x.responseText);}catch(e){}
+    if(x.status!==200||!r){var msg=r&&r.error?r.error.message:('HTTP '+x.status);$('aiOut').innerHTML='<p style="color:#c0392b">AI 查詢失敗：'+esc(msg)+(x.status===401?'（金鑰錯誤）':'')+'</p>';return;}
+    if(r.stop_reason==='refusal'){$('aiOut').innerHTML='<p class="muted">AI 這次無法回答，請改用文字描述再試一次。</p>';return;}
+    var txt=(r.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('\n').trim();
+    LAST_AI=txt;
+    $('aiOut').innerHTML='<div class="site" style="white-space:pre-wrap;line-height:1.6">'+esc(txt||'（沒有內容）')+'</div><div class="muted">AI 回答僅供參考，以原廠手冊為準。</div>';
+  };
+  x.onerror=function(){$('aiOut').innerHTML='<p style="color:#c0392b">連線失敗，請確認網路。</p>';};
+  x.ontimeout=function(){$('aiOut').innerHTML='<p style="color:#c0392b">AI 回應逾時，請再試一次。</p>';};
+  x.send(JSON.stringify(body));
 }
 
 /* ---------- 資料匯入匯出 ---------- */
@@ -475,19 +600,35 @@ function init(){
   $('fixModel').innerHTML=MODELS.map(function(m){return '<option value="'+m.id+'">'+esc(m.model)+'（'+esc(m.cat)+'）</option>';}).join('');
   $('fixModel').value='HA8180';
   $('nav').addEventListener('click',function(e){var t=e.target.getAttribute('data-tab');if(t){e.preventDefault();show(t);}});
-  $('selBase').addEventListener('change',function(){var b=BASES[+this.value];ORIGIN={lat:b.lat,lng:b.lng,name:b.n};refresh();});
+  $('selBase').addEventListener('change',function(){if(this.value==='gps'){$('btnGeo').click();return;}var b=BASES[+this.value];ORIGIN={lat:b.lat,lng:b.lng,name:b.n};refresh();});
   $('selRadius').addEventListener('change',refresh);$('selShow').addEventListener('change',refresh);$('selHours').addEventListener('change',refresh);
   $('btnRoute').addEventListener('click',renderRoute);
   $('btnToRoute').addEventListener('click',function(){show('route');});
   $('btnGeo').addEventListener('click',function(){
     if(!navigator.geolocation){$('geoMsg').textContent='這台裝置不支援定位，請選出發據點。';return;}
     $('geoMsg').textContent='定位中…';
-    navigator.geolocation.getCurrentPosition(function(p){ORIGIN={lat:p.coords.latitude,lng:p.coords.longitude,name:'目前位置（±'+Math.round(p.coords.accuracy)+' m）'};refresh();},
+    navigator.geolocation.getCurrentPosition(function(p){
+        var la=p.coords.latitude,ln=p.coords.longitude,best=null,bd=1e9;
+        DIST.forEach(function(d){var k=km(la,ln,d[1],d[2]);if(k<bd){bd=k;best=d[0];}});
+        var near=bd<6?'靠近'+best:'不在雙北範圍（離最近的'+best+' '+bd.toFixed(0)+' km）';
+        ORIGIN={lat:la,lng:ln,name:'📍 目前位置（'+near+'，誤差 ±'+Math.round(p.coords.accuracy)+' m）',acc:p.coords.accuracy,gps:true};
+        var sel=$('selBase'),op=sel.querySelector('option[value="gps"]');
+        if(!op){op=document.createElement('option');op.value='gps';sel.insertBefore(op,sel.firstChild);}
+        op.textContent='📍 目前位置（'+near+'）';sel.value='gps';
+        refresh();
+        $('geoMsg').innerHTML=esc(ORIGIN.name)+'　座標 '+la.toFixed(5)+', '+ln.toFixed(5)+'　<a target="_blank" href="https://maps.google.com/?q='+la.toFixed(6)+','+ln.toFixed(6)+'">在 Google 地圖確認</a>';
+      },
       function(err){$('geoMsg').textContent='無法取得位置（'+(err.code===1?'未允許定位':'訊號不足')+'），請改選出發據點。';},{enableHighAccuracy:true,timeout:15000,maximumAge:60000});
   });
   $('catQ').addEventListener('input',renderCatalog);$('catCat').addEventListener('change',renderCatalog);
-  $('btnFix').addEventListener('click',renderFix);$('fixModel').addEventListener('change',renderFix);
-  $('fixQ').addEventListener('keyup',function(e){if(e.keyCode===13)renderFix();});
+  $('btnFix').addEventListener('click',renderFix);
+  $('filePhoto').addEventListener('change',onPhoto);
+  $('btnPhotoDel').addEventListener('click',function(){PHOTO=null;$('photoBox').classList.add('hide');});
+  $('aiKey').value=getKey()?'（已儲存）':'';
+  $('aiKeyMsg').textContent=getKey()?'已設定 AI 金鑰。':'尚未設定。';
+  $('btnKeySave').addEventListener('click',function(){var k=$('aiKey').value.trim();if(k.indexOf('sk-ant-')!==0){$('aiKeyMsg').textContent='金鑰格式不對（應該以 sk-ant- 開頭）。';return;}LS.set('mt_aikey',k);$('aiKey').value='（已儲存）';$('aiKeyMsg').textContent='已設定 AI 金鑰。';});
+  $('btnKeyDel').addEventListener('click',function(){try{localStorage.removeItem('mt_aikey');}catch(e){}$('aiKey').value='';$('aiKeyMsg').textContent='已清除。';});
+  initMic();renderCases();
   $('btnImport').addEventListener('click',doImport);$('btnExport').addEventListener('click',doExport);
   $('btnSample').addEventListener('click',function(){$('csvBox').value='客戶名稱,類型,區域,緯度,經度,機型代碼,序號,上次保養日\n範例醫院,區域醫院,台北市中山區,25.0640,121.5330,HA8180,HA810001,2026-08-15\n範例醫院,區域醫院,台北市中山區,25.0640,121.5330,VIDAS30,VID20002,2026-06-01\n範例診所,診所,新北市板橋區,25.0115,121.4627,PCA1C,PCA30003,2026-01-10';});
   $('btnReset').addEventListener('click',function(){try{localStorage.removeItem('mt_sites');localStorage.removeItem('mt_done');}catch(e){}SITES=genDemo();IS_DEMO=true;DONE={};$('importMsg').textContent='已恢復示範資料。';summary();refresh();});
@@ -498,12 +639,14 @@ function init(){
         if(t.getAttribute('data-done')){e.preventDefault();markDone(t.getAttribute('data-done'));return;}
         if(t.getAttribute('data-site')&&t.id!=='modal'){e.preventDefault();var sid=t.getAttribute('data-site');showSite(sid);$('modal').setAttribute('data-site',sid);return;}
         if(t.getAttribute('data-where')){e.preventDefault();showWhere(t.getAttribute('data-where'));return;}
+        if(t.id==='btnSaveCase'){saveCase();return;}
+        if(t.getAttribute('data-delcase')){if(confirm('刪除這筆案例？')){CASES.splice(+t.getAttribute('data-delcase'),1);LS.set('mt_cases',CASES);renderCases();}return;}
         if(t.id==='btnClose'||t.id==='modal'){if(t===e.target){$('modal').classList.add('hide');}return;}
       }
       t=t.parentNode;
     }
   });
-  refresh();renderFix();
+  refresh();
 }
 init();
 })();
