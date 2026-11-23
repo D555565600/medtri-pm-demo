@@ -63,6 +63,7 @@ h2{font-size:18px;margin:0 0 10px 0}
 <header><h1>現場保養助手</h1><span class="tag">示範資料</span></header>
 <nav id="nav">
   <a href="#" data-tab="near" class="on">附近待保養</a>
+  <a href="#" data-tab="team">工程師排程</a>
   <a href="#" data-tab="route">今日路線</a>
   <a href="#" data-tab="parts">車上備料</a>
   <a href="#" data-tab="catalog">產品線查詢</a>
@@ -95,12 +96,42 @@ h2{font-size:18px;margin:0 0 10px 0}
   </div>
 </section>
 
+<!-- 工程師排程 -->
+<section id="tab-team" class="hide">
+  <div class="panel">
+    <div class="row">
+      <span>我是</span><select id="selMe"></select>
+      <span>查看</span><select id="selTeamView"><option value="all">全組行程</option><option value="me">只看我的</option></select>
+      <span>天數</span><select id="selTeamDays"><option>7</option><option selected>14</option><option>30</option></select>
+    </div>
+    <p class="muted">主管在客戶的「設備明細」或「今日路線」派工給工程師；App 會檢查同一台設備有沒有被重複排給兩個人。每筆行程都能加到 Google 日曆。工程師名稱與行程為示範資料。</p>
+  </div>
+  <div id="conflictBox"></div>
+  <div class="stats" id="teamStats"></div>
+  <div class="panel" style="margin-top:8px">
+    <div class="row"><h2 class="grow" style="margin:0">行程</h2><a class="btn sub" id="btnIcs" href="#" target="_blank">📅 匯出我的行程（.ics）</a></div>
+    <div id="teamList" style="margin-top:8px"></div>
+  </div>
+  <div class="panel">
+    <h2>正式版怎麼接 Google 日曆</h2>
+    <ol class="muted" style="line-height:1.7">
+      <li>公司 Google Workspace 建一個「工程部保養排程」共用日曆，每位工程師、主管都看得到。</li>
+      <li>主管派工時，App 用 Google Calendar API 直接寫入共用日曆，事件內容帶客戶、設備序號。</li>
+      <li>App 讀取共用日曆，比對序號：同一台設備被兩個人排、或同一家客戶同一天兩個人去，就跳出提醒。</li>
+      <li>工程師手機的 Google 日曆會自動收到行程與提醒。</li>
+    </ol>
+  </div>
+</section>
+
 <!-- 今日路線 -->
 <section id="tab-route" class="hide">
   <div class="panel">
     <div class="row"><h2 class="grow" style="margin:0">今日路線</h2>
       <span>一天工時</span><select id="selHours"><option>6</option><option selected>8</option><option>10</option></select><span>小時</span>
       <button id="btnRoute">重新排程</button></div>
+    <div class="row" style="margin-top:6px"><label><input type="checkbox" id="chkSkipOthers" class="chk" checked> 略過已排給其他工程師的設備</label>
+      <span class="grow"></span><span>派給</span><select id="selRouteEng"></select><span>日期</span><select id="selRouteDate"></select><button class="ok" id="btnAssignRoute">✅ 排入行程</button></div>
+    <p id="assignMsg" class="muted"></p>
     <p class="muted">從出發點用「最近的下一站」排序，距離＝直線 × 1.3 估算市區道路，車速 25 km/h，每台保養約 40 分鐘。超過工時的站會排到明天。</p>
   </div>
   <div class="stats" id="routeStats"></div>
@@ -285,6 +316,97 @@ var DONE=LS.get('mt_done',{}); /* devId -> 日期 */
 var ORIGIN={lat:BASES[0].lat,lng:BASES[0].lng,name:BASES[0].n};
 var ROUTE=[];
 
+/* ---------- 工程師排程 ---------- */
+var ENG=['我（新人）','王工程師','李工程師','陳工程師','林工程師'];
+var ME=LS.get('mt_me',ENG[0]);
+function dayStr(off){return fmt(new Date(today().getTime()+off*DAY));}
+function genAssign(){
+  var r=rng(777),out=[],n=0;
+  SITES.forEach(function(s){
+    var due=s.devices.filter(function(d){return devStatus(d).k!=='ok';});
+    if(!due.length||r()>0.38)return;
+    var eng=ENG[1+Math.floor(r()*4)];
+    out.push({id:'A'+(n++),date:dayStr(Math.floor(r()*10)),eng:eng,siteId:s.id,devIds:due.map(function(d){return d.id;}),by:'主管'});
+    if(r()<0.12){ /* 示範：主管不小心重複派給另一位 */
+      var e2=ENG[1+Math.floor(r()*4)];if(e2===eng)e2=ENG[(ENG.indexOf(eng)%4)+1];
+      out.push({id:'A'+(n++),date:dayStr(Math.floor(r()*10)),eng:e2,siteId:s.id,devIds:[due[0].id],by:'主管'});
+    }
+  });
+  return out;
+}
+var ASSIGN=LS.get('mt_assign',null)||genAssign();
+function saveAssign(){LS.set('mt_assign',ASSIGN);}
+function siteById(id){for(var i=0;i<SITES.length;i++)if(SITES[i].id===id)return SITES[i];return null;}
+function devById(id){for(var i=0;i<SITES.length;i++)for(var j=0;j<SITES[i].devices.length;j++)if(SITES[i].devices[j].id===id)return SITES[i].devices[j];return null;}
+/* 還沒完成的派工（設備在派工建立後沒有標記完成） */
+function openDevs(a){return a.devIds.filter(function(id){var dn=DONE[id];return !(dn&&dn>=(a.created||'0000'));});}
+function assignsOf(devId){return ASSIGN.filter(function(a){return a.devIds.indexOf(devId)>=0&&openDevs(a).indexOf(devId)>=0;});}
+function conflicts(){
+  var map={},out=[];
+  ASSIGN.forEach(function(a){openDevs(a).forEach(function(id){(map[id]=map[id]||[]).push(a);});});
+  Object.keys(map).forEach(function(id){var L=map[id];if(L.length>1)out.push({devId:id,list:L});});
+  return out;
+}
+function assignDevs(eng,date,siteId,devIds){
+  /* 回傳 {added:[], dup:[{devId,a}]} ；重複的不排入 */
+  var dup=[],ok=[];
+  devIds.forEach(function(id){var ex=assignsOf(id);if(ex.length)dup.push({devId:id,a:ex[0]});else ok.push(id);});
+  if(ok.length)ASSIGN.push({id:'A'+Date.now()+Math.floor(Math.random()*1000),date:date,eng:eng,siteId:siteId,devIds:ok,by:ME,created:fmt(today())});
+  saveAssign();return {added:ok,dup:dup};
+}
+function md(s){var p=s.split('-');return (+p[1])+'/'+(+p[2]);}
+function gcalUrl(a){
+  var s=siteById(a.siteId);if(!s)return '#';
+  var d=a.date.replace(/-/g,''),d2=fmt(new Date(parseD(a.date).getTime()+DAY)).replace(/-/g,'');
+  var devs=openDevs(a).map(function(id){var dv=devById(id),m=dv&&MBYID[dv.model];return (m?m.model:'')+' 序號 '+(dv?dv.sn:id);}).join('\n');
+  return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent('保養：'+s.name+'（'+a.eng+'）')+
+    '&dates='+d+'/'+d2+'&details='+encodeURIComponent('派工：'+(a.by||'')+'\n設備：\n'+devs)+'&location='+encodeURIComponent(s.lat.toFixed(5)+','+s.lng.toFixed(5));
+}
+function icsFor(eng){
+  var L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//demo//pm//ZH'];
+  ASSIGN.forEach(function(a){if(a.eng!==eng||!openDevs(a).length)return;var s=siteById(a.siteId);if(!s)return;
+    var d=a.date.replace(/-/g,''),d2=fmt(new Date(parseD(a.date).getTime()+DAY)).replace(/-/g,'');
+    L.push('BEGIN:VEVENT','UID:'+a.id+'@pm-demo','DTSTAMP:'+fmt(today()).replace(/-/g,'')+'T000000Z','DTSTART;VALUE=DATE:'+d,'DTEND;VALUE=DATE:'+d2,'SUMMARY:保養：'+s.name,'LOCATION:'+s.area,'DESCRIPTION:'+openDevs(a).length+' 台設備','END:VEVENT');});
+  L.push('END:VCALENDAR');return 'data:text/calendar;charset=utf-8,'+encodeURIComponent(L.join('\r\n'));
+}
+function renderTeam(){
+  var view=$('selTeamView').value,days=+$('selTeamDays').value,T0=dayStr(-1),T1=dayStr(days);
+  var cf=conflicts(),h='';
+  if(cf.length){
+    h='<div class="panel" style="border-left:5px solid #c0392b"><h2 style="color:#c0392b">⚠ 重複派工 '+cf.length+' 台</h2>';
+    cf.forEach(function(c){var dv=devById(c.devId),m=dv&&MBYID[dv.model],s=siteById(c.list[0].siteId);
+      h+='<div class="dev"><div class="nm"><b>'+esc(s?s.name:'')+'</b>｜'+esc(m?m.model:'')+' <small>序號 '+esc(dv?dv.sn:'')+'</small><br>'+
+        c.list.map(function(a){return esc(a.eng)+' '+md(a.date)+' <button class="small sub" data-unassign="'+a.id+'|'+c.devId+'">取消這筆</button>';}).join('　')+'</div></div>';});
+    h+='</div>';
+  }else h='<div class="panel" style="border-left:5px solid #2e8b57">✅ 沒有重複派工</div>';
+  $('conflictBox').innerHTML=h;
+  var list=ASSIGN.filter(function(a){return a.date>=T0&&a.date<=T1&&openDevs(a).length&&(view==='all'||a.eng===ME);});
+  list.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:(a.eng<b.eng?-1:1);});
+  var per={};ENG.forEach(function(e){per[e]=0;});list.forEach(function(a){per[a.eng]=(per[a.eng]||0)+openDevs(a).length;});
+  $('teamStats').innerHTML=ENG.map(function(e,i){return '<div class="stat" style="background:'+['#123a5c','#5b6abf','#2a8c8c','#8e5ba8','#b5651d'][i]+'"><b>'+per[e]+'</b><span>'+esc(e)+'</span></div>';}).join('');
+  var dupSet={};cf.forEach(function(c){c.list.forEach(function(a){dupSet[a.id]=1;});});
+  var t='',cur='';
+  list.forEach(function(a){
+    if(a.date!==cur){cur=a.date;var wd='日一二三四五六'.charAt(parseD(a.date).getDay());t+='<h3 style="margin:14px 0 6px">'+md(a.date)+'（'+wd+'）'+(a.date===dayStr(0)?' 今天':'')+'</h3>';}
+    var s=siteById(a.siteId),od=openDevs(a);
+    t+='<div class="site"'+(dupSet[a.id]?' style="border-color:#c0392b"':'')+'><div class="row"><b class="grow">'+esc(s?s.name:'?')+'</b><span class="badge" style="background:#5d6b79">'+esc(a.eng)+'</span></div>'+
+      '<div class="meta">'+esc(s?s.area:'')+'・'+od.length+' 台：'+od.map(function(id){var dv=devById(id);return esc(dv&&MBYID[dv.model]?MBYID[dv.model].model:id);}).join('、')+(dupSet[a.id]?' <b style="color:#c0392b">⚠ 有重複</b>':'')+'</div>'+
+      '<div class="row" style="margin-top:4px"><a class="btn small sub" target="_blank" href="'+gcalUrl(a)+'">＋ Google 日曆</a>'+
+      (s?'<a class="btn small sub" target="_blank" href="'+navUrl(s)+'">導航</a>':'')+
+      '<select data-reassign="'+a.id+'">'+ENG.map(function(e){return '<option'+(e===a.eng?' selected':'')+'>'+esc(e)+'</option>';}).join('')+'</select>'+
+      '<button class="small sub" data-delassign="'+a.id+'">取消</button></div></div>';
+  });
+  $('teamList').innerHTML=t||'<p class="muted">這段期間沒有行程。</p>';
+  $('btnIcs').href=icsFor(ME);
+}
+function assignBadge(d){
+  var L=assignsOf(d.id);if(!L.length)return '';
+  var dup=L.length>1;
+  return ' <span class="badge" style="background:'+(dup?'#c0392b':'#5b6abf')+'">'+(dup?'⚠ 重複：':'已排：')+L.map(function(a){return esc(a.eng)+' '+md(a.date);}).join('、')+'</span>';
+}
+function fillDateSel(el){var h='';for(var i=0;i<14;i++){var s=dayStr(i);h+='<option value="'+s+'">'+md(s)+'（'+'日一二三四五六'.charAt(parseD(s).getDay())+'）'+(i===0?' 今天':i===1?' 明天':'')+'</option>';}el.innerHTML=h;}
+function engOpts(sel){return ENG.map(function(e){return '<option'+(e===sel?' selected':'')+'>'+esc(e)+'</option>';}).join('');}
+
 function devLast(d){return parseD(DONE[d.id]||d.last);}
 function devDue(d){var m=MBYID[d.model];return addMonths(devLast(d),m?m.pm:6);}
 function devStatus(d){var days=Math.round((devDue(d)-today())/DAY);if(days<0)return{k:'over',t:'逾期 '+(-days)+' 天',days:days};if(days<=14)return{k:'soon',t:days+' 天後到期',days:days};if(days<=30)return{k:'month',t:days+' 天後到期',days:days};return{k:'ok',t:days+' 天後',days:days};}
@@ -325,7 +447,7 @@ function renderNear(){
 function stat(c,n,t){return '<div class="stat '+c+'"><b>'+n+'</b><span>'+t+'</span></div>';}
 function devRow(d){
   var m=MBYID[d.model]||{model:d.model,brand:''},st=devStatus(d);
-  return '<div class="dev"><div class="nm">'+esc(m.model)+' <small>'+esc(m.brand)+'・序號 '+esc(d.sn)+'・上次 '+fmt(devLast(d))+'</small></div>'+
+  return '<div class="dev"><div class="nm">'+esc(m.model)+' <small>'+esc(m.brand)+'・序號 '+esc(d.sn)+'・上次 '+fmt(devLast(d))+'</small>'+assignBadge(d)+'</div>'+
     '<span class="badge" style="background:'+COLOR[st.k]+'">'+st.t+'</span> <button class="small ok" data-done="'+d.id+'" style="margin-left:6px">完成</button></div>';
 }
 function navUrl(s){return 'https://maps.google.com/?daddr='+s.lat.toFixed(5)+','+s.lng.toFixed(5)+'&saddr='+ORIGIN.lat.toFixed(5)+','+ORIGIN.lng.toFixed(5);}
@@ -347,7 +469,12 @@ function drawMap(el,list,R){
 
 /* ---------- 路線 ---------- */
 function buildRoute(){
-  var pool=nearSites().slice(),cur={lat:ORIGIN.lat,lng:ORIGIN.lng},out=[],hours=+$('selHours').value*60,used=0,later=[];
+  var skip=$('chkSkipOthers').checked;
+  var pool=nearSites().map(function(it){
+    if(!skip)return it;
+    var dv=it.devs.filter(function(d){var L=assignsOf(d.id);return !L.length||L.every(function(a){return a.eng===$('selRouteEng').value;});});
+    return {s:it.s,km:it.km,devs:dv};
+  }).filter(function(it){return it.devs.length;}),cur={lat:ORIGIN.lat,lng:ORIGIN.lng},out=[],hours=+$('selHours').value*60,used=0,later=[];
   while(pool.length){
     var bi=0,bd=1e9;
     for(var i=0;i<pool.length;i++){var dd=km(cur.lat,cur.lng,pool[i].s.lat,pool[i].s.lng);if(dd<bd){bd=dd;bi=i;}}
@@ -568,7 +695,7 @@ function doImport(){
   });
   var arr=Object.keys(map).map(function(k){return map[k];});
   if(!arr.length){$('importMsg').textContent='沒有可用的資料列（'+bad+' 列格式不對）。';return;}
-  SITES=arr;IS_DEMO=false;DONE={};LS.set('mt_sites',SITES);LS.set('mt_done',DONE);
+  SITES=arr;IS_DEMO=false;DONE={};ASSIGN=[];saveAssign();LS.set('mt_sites',SITES);LS.set('mt_done',DONE);
   $('importMsg').textContent='已匯入 '+arr.length+' 個客戶、'+ok+' 台設備'+(bad?'，略過 '+bad+' 列格式不對的資料':'')+'。';
   summary();refresh();
 }
@@ -583,16 +710,18 @@ function showSite(id){
   var s=null;SITES.forEach(function(x){if(x.id===id)s=x;});if(!s)return;
   var h='<h2>'+esc(s.name)+'</h2><p class="muted">'+esc(s.type)+'・'+esc(s.area)+'・距離 '+km(ORIGIN.lat,ORIGIN.lng,s.lat,s.lng).toFixed(1)+' km・<a href="'+navUrl(s)+'" target="_blank">導航</a></p>';
   s.devices.slice().sort(function(a,b){return devStatus(a).days-devStatus(b).days;}).forEach(function(d){h+=devRow(d)+'<div class="muted" style="padding-left:4px">下次到期 '+fmt(devDue(d))+'</div>';});
-  openModal(h,id);
+  h+='<div class="panel" style="background:#f4f6f9;margin-top:10px"><b>主管派工</b><div class="row" style="margin-top:6px"><select id="mEng">'+engOpts(ENG[1])+'</select><select id="mDate"></select>'+
+    '<button class="ok small" data-assignsite="'+id+'">派這家 30 天內要保養的設備</button></div><div id="mMsg" class="muted"></div></div>';
+  openModal(h,id);fillDateSel($('mDate'));
 }
 function markDone(id){DONE[id]=fmt(today());LS.set('mt_done',DONE);refresh();var box=$('modal');if(!box.classList.contains('hide')){var sid=box.getAttribute('data-site');if(sid)showSite(sid);}}
 function openModal(h,sid){$('modalBox').innerHTML=h+'<div style="text-align:right;margin-top:12px"><button class="sub" id="btnClose">關閉</button></div>';var m=$('modal');m.setAttribute('data-site',sid||'');m.classList.remove('hide');}
 
 /* ---------- 切頁與事件 ---------- */
 var CUR='near';
-function show(tab){CUR=tab;['near','route','parts','catalog','fix','data'].forEach(function(t){$('tab-'+t).classList[t===tab?'remove':'add']('hide');});
+function show(tab){CUR=tab;['near','team','route','parts','catalog','fix','data'].forEach(function(t){$('tab-'+t).classList[t===tab?'remove':'add']('hide');});
   var as=$('nav').getElementsByTagName('a');for(var i=0;i<as.length;i++)as[i].className=as[i].getAttribute('data-tab')===tab?'on':'';refresh();window.scrollTo(0,0);}
-function refresh(){if(CUR==='near')renderNear();else if(CUR==='route')renderRoute();else if(CUR==='parts'){buildRoute();renderParts();}else if(CUR==='catalog')renderCatalog();else if(CUR==='data')summary();}
+function refresh(){if(CUR==='team')renderTeam();else if(CUR==='near')renderNear();else if(CUR==='route')renderRoute();else if(CUR==='parts'){buildRoute();renderParts();}else if(CUR==='catalog')renderCatalog();else if(CUR==='data')summary();}
 
 function init(){
   $('selBase').innerHTML=BASES.map(function(b,i){return '<option value="'+i+'">'+esc(b.n)+'</option>';}).join('');
@@ -603,6 +732,19 @@ function init(){
   $('selBase').addEventListener('change',function(){if(this.value==='gps'){$('btnGeo').click();return;}var b=BASES[+this.value];ORIGIN={lat:b.lat,lng:b.lng,name:b.n};refresh();});
   $('selRadius').addEventListener('change',refresh);$('selShow').addEventListener('change',refresh);$('selHours').addEventListener('change',refresh);
   $('btnRoute').addEventListener('click',renderRoute);
+  $('selMe').innerHTML=engOpts(ME);$('selRouteEng').innerHTML=engOpts(ME);fillDateSel($('selRouteDate'));
+  $('selMe').addEventListener('change',function(){ME=this.value;LS.set('mt_me',ME);$('selRouteEng').value=ME;refresh();});
+  $('selTeamView').addEventListener('change',renderTeam);$('selTeamDays').addEventListener('change',renderTeam);
+  $('chkSkipOthers').addEventListener('change',renderRoute);$('selRouteEng').addEventListener('change',renderRoute);
+  $('btnAssignRoute').addEventListener('click',function(){
+    var eng=$('selRouteEng').value,date=$('selRouteDate').value,add=0,dups=[];
+    ROUTE.forEach(function(x){if(x.tomorrow)return;var r=assignDevs(eng,date,x.s.id,x.devs.map(function(d){return d.id;}));add+=r.added.length;dups=dups.concat(r.dup);});
+    var msg='已排 '+add+' 台給 '+eng+'（'+md(date)+'）。';
+    if(dups.length)msg+=' ⚠ 有 '+dups.length+' 台已經排給別人，沒有重複排入：'+dups.map(function(x){var dv=devById(x.devId);return (dv&&MBYID[dv.model]?MBYID[dv.model].model:'')+'→'+x.a.eng+' '+md(x.a.date);}).join('、');
+    $('assignMsg').textContent=msg;renderRoute();
+  });
+  document.addEventListener('change',function(e){var t=e.target,id=t.getAttribute&&t.getAttribute('data-reassign');if(!id)return;
+    ASSIGN.forEach(function(a){if(a.id===id)a.eng=t.value;});saveAssign();renderTeam();});
   $('btnToRoute').addEventListener('click',function(){show('route');});
   $('btnGeo').addEventListener('click',function(){
     if(!navigator.geolocation){$('geoMsg').textContent='這台裝置不支援定位，請選出發據點。';return;}
@@ -631,7 +773,7 @@ function init(){
   initMic();renderCases();
   $('btnImport').addEventListener('click',doImport);$('btnExport').addEventListener('click',doExport);
   $('btnSample').addEventListener('click',function(){$('csvBox').value='客戶名稱,類型,區域,緯度,經度,機型代碼,序號,上次保養日\n範例醫院,區域醫院,台北市中山區,25.0640,121.5330,HA8180,HA810001,2026-08-15\n範例醫院,區域醫院,台北市中山區,25.0640,121.5330,VIDAS30,VID20002,2026-06-01\n範例診所,診所,新北市板橋區,25.0115,121.4627,PCA1C,PCA30003,2026-01-10';});
-  $('btnReset').addEventListener('click',function(){try{localStorage.removeItem('mt_sites');localStorage.removeItem('mt_done');}catch(e){}SITES=genDemo();IS_DEMO=true;DONE={};$('importMsg').textContent='已恢復示範資料。';summary();refresh();});
+  $('btnReset').addEventListener('click',function(){try{localStorage.removeItem('mt_sites');localStorage.removeItem('mt_done');}catch(e){}SITES=genDemo();IS_DEMO=true;DONE={};try{localStorage.removeItem('mt_assign');}catch(e){}ASSIGN=genAssign();$('importMsg').textContent='已恢復示範資料。';summary();refresh();});
   document.addEventListener('click',function(e){
     var t=e.target;
     while(t&&t!==document){
@@ -640,6 +782,17 @@ function init(){
         if(t.getAttribute('data-site')&&t.id!=='modal'){e.preventDefault();var sid=t.getAttribute('data-site');showSite(sid);$('modal').setAttribute('data-site',sid);return;}
         if(t.getAttribute('data-where')){e.preventDefault();showWhere(t.getAttribute('data-where'));return;}
         if(t.id==='btnSaveCase'){saveCase();return;}
+        if(t.getAttribute('data-assignsite')){var sid2=t.getAttribute('data-assignsite'),st=siteById(sid2);
+          var ids=st.devices.filter(function(d){return devStatus(d).k!=='ok';}).map(function(d){return d.id;});
+          if(!ids.length){$('mMsg').textContent='這家目前沒有 30 天內要保養的設備。';return;}
+          var rr=assignDevs($('mEng').value,$('mDate').value,sid2,ids),eg=$('mEng').value,dt=$('mDate').value;
+          showSite(sid2);
+          $('mMsg').innerHTML='已派 '+rr.added.length+' 台給 '+esc(eg)+'（'+md(dt)+'）'+(rr.dup.length?'<br><b style="color:#c0392b">⚠ '+rr.dup.length+' 台已經排給 '+rr.dup.map(function(x){return esc(x.a.eng)+' '+md(x.a.date);}).join('、')+'，沒有重複派。</b>':'');
+          return;}
+        if(t.getAttribute('data-delassign')){var did=t.getAttribute('data-delassign');ASSIGN=ASSIGN.filter(function(a){return a.id!==did;});saveAssign();renderTeam();return;}
+        if(t.getAttribute('data-unassign')){var pr=t.getAttribute('data-unassign').split('|');
+          ASSIGN.forEach(function(a){if(a.id===pr[0])a.devIds=a.devIds.filter(function(x){return x!==pr[1];});});
+          ASSIGN=ASSIGN.filter(function(a){return a.devIds.length;});saveAssign();renderTeam();return;}
         if(t.getAttribute('data-delcase')){if(confirm('刪除這筆案例？')){CASES.splice(+t.getAttribute('data-delcase'),1);LS.set('mt_cases',CASES);renderCases();}return;}
         if(t.id==='btnClose'||t.id==='modal'){if(t===e.target){$('modal').classList.add('hide');}return;}
       }
