@@ -65,10 +65,12 @@ mark{background:#ffe58a;padding:0 1px}
 <header><h1>現場保養助手</h1><span class="tag">示範資料</span></header>
 <nav id="nav">
   <a href="#" data-tab="near" class="on">附近待保養</a>
+  <a href="#" data-tab="boss">老闆儀表板</a>
   <a href="#" data-tab="team">工程師排程</a>
   <a href="#" data-tab="route">今日路線</a>
   <a href="#" data-tab="recs">保養紀錄</a>
   <a href="#" data-tab="cost">成本分析</a>
+  <a href="#" data-tab="leads">業務商機</a>
   <a href="#" data-tab="parts">車上備料</a>
   <a href="#" data-tab="catalog">產品線查詢</a>
   <a href="#" data-tab="fix">故障排除</a>
@@ -161,6 +163,33 @@ mark{background:#ffe58a;padding:0 1px}
     <div class="c"><div class="panel"><h2>料件用量（依目前篩選）</h2><div id="recParts"></div></div></div>
   </div>
   <div class="panel hide" id="recCsvBox"><textarea id="recCsv"></textarea></div>
+</section>
+
+<!-- 老闆儀表板 -->
+<section id="tab-boss" class="hide">
+  <div class="panel"><div class="row"><h2 class="grow" style="margin:0">老闆儀表板</h2><span id="bossTime" class="muted"></span></div>
+    <p class="muted">一頁看完：保養進度、工程師工作量、成本、保固與合約、業務商機、未結案維修。點客戶名稱可看明細。</p></div>
+  <div class="stats" id="bossK1"></div><div class="stats" id="bossK2" style="margin-top:4px"></div><div class="stats" id="bossK3" style="margin-top:4px"></div>
+  <div class="cols" style="margin-top:8px">
+    <div class="c"><div class="panel"><h2>工程師本月工作量</h2><div id="bossEng"></div></div>
+      <div class="panel"><h2>近 6 個月保養／維修件數與成本</h2><div id="bossTrend"></div></div>
+      <div class="panel"><h2>未結案維修（待料／需原廠支援）</h2><div id="bossIss"></div></div></div>
+    <div class="c"><div class="panel"><h2>逾期最多的客戶</h2><div id="bossOver"></div></div>
+      <div class="panel"><h2>保固與保養合約</h2><div id="bossWty"></div></div>
+      <div class="panel"><h2>進行中商機（依類型金額）</h2><div id="bossLead"></div></div></div>
+  </div>
+</section>
+
+<!-- 業務商機 -->
+<section id="tab-leads" class="hide">
+  <div class="panel"><h2>業務商機</h2><div class="row"><select id="ldKind"></select><select id="ldStat"></select><span class="grow"></span><button class="small sub" id="btnLdCsv">匯出 CSV 給業務</button></div>
+    <p class="muted">工程師在現場聽到客戶需求（加購、汰換、試劑、教育訓練…），在保養單或設備履歷按「轉給業務」就會出現在這裡；系統也會依保固、合約、機齡自動提醒。金額與合約年費為示範假設。</p></div>
+  <div class="stats" id="ldStats"></div>
+  <div class="cols" style="margin-top:8px">
+    <div class="c"><div class="panel"><h2>工程師回報的商機</h2><div id="ldList"></div></div></div>
+    <div class="c"><div class="panel"><h2>系統提醒</h2><div id="ldAuto"></div></div></div>
+  </div>
+  <div class="panel hide" id="ldCsvBox"><textarea id="ldCsv"></textarea></div>
 </section>
 
 <!-- 成本分析 -->
@@ -257,7 +286,7 @@ mark{background:#ffe58a;padding:0 1px}
     <h2>客戶與設備資料</h2>
     <p id="dataSummary"></p>
     <div class="note">目前是<b>系統產生的虛構示範據點</b>（示範醫院、示範診所…），位置只取各行政區大概位置。到職後把公司的設備清單（Excel 另存 CSV）貼到下面匯入，就會換成真實資料。資料只存在這台裝置。</div>
-    <p class="muted">CSV 欄位（第一列為標題）：客戶名稱,類型,區域,緯度,經度,機型代碼,序號,上次保養日(YYYY-MM-DD)<br>機型代碼見「產品線查詢」每張卡右上角。</p>
+    <p class="muted">CSV 欄位（第一列為標題）：客戶名稱,類型,區域,緯度,經度,機型代碼,序號,上次保養日(YYYY-MM-DD),購買日,保固月數,保養合約到期日（最後三欄可空白）<br>機型代碼見「產品線查詢」每張卡右上角。</p>
     <textarea id="csvBox" placeholder="客戶名稱,類型,區域,緯度,經度,機型代碼,序號,上次保養日"></textarea>
     <div class="row" style="margin-top:8px">
       <button id="btnImport">匯入貼上的資料</button>
@@ -379,7 +408,7 @@ var ORIGIN={lat:BASES[0].lat,lng:BASES[0].lng,name:BASES[0].n};
 var ROUTE=[];
 
 /* ---------- 工程師排程 ---------- */
-var ENG=['我（新人）','王工程師','李工程師','陳工程師','林工程師'];
+var ENG=['我（新人）','王工程師','李工程師','陳工程師','林工程師','鄧主管'];
 var ME=LS.get('mt_me',ENG[0]);
 function dayStr(off){return fmt(new Date(today().getTime()+off*DAY));}
 function genAssign(){
@@ -388,10 +417,10 @@ function genAssign(){
     var due=s.devices.filter(function(d){return devStatus(d).k!=='ok';});
     if(!due.length||r()>0.38)return;
     var eng=ENG[1+Math.floor(r()*4)];
-    out.push({id:'A'+(n++),date:dayStr(Math.floor(r()*10)),eng:eng,siteId:s.id,devIds:due.map(function(d){return d.id;}),by:'主管'});
+    out.push({id:'A'+(n++),date:dayStr(Math.floor(r()*10)),eng:eng,siteId:s.id,devIds:due.map(function(d){return d.id;}),by:'鄧主管'});
     if(r()<0.12){ /* 示範：主管不小心重複派給另一位 */
       var e2=ENG[1+Math.floor(r()*4)];if(e2===eng)e2=ENG[(ENG.indexOf(eng)%4)+1];
-      out.push({id:'A'+(n++),date:dayStr(Math.floor(r()*10)),eng:e2,siteId:s.id,devIds:[due[0].id],by:'主管'});
+      out.push({id:'A'+(n++),date:dayStr(Math.floor(r()*10)),eng:e2,siteId:s.id,devIds:[due[0].id],by:'鄧主管'});
     }
   });
   return out;
@@ -509,7 +538,7 @@ function renderNear(){
 function stat(c,n,t){return '<div class="stat '+c+'"><b>'+n+'</b><span>'+t+'</span></div>';}
 function devRow(d){
   var m=MBYID[d.model]||{model:d.model,brand:''},st=devStatus(d);
-  return '<div class="dev"><div class="nm">'+esc(m.model)+' <small>'+esc(m.brand)+'・序號 '+esc(d.sn)+'・上次 '+fmt(devLast(d))+'</small>'+assignBadge(d)+'</div>'+
+  return '<div class="dev"><div class="nm">'+esc(m.model)+' <small>'+esc(m.brand)+'・序號 '+esc(d.sn)+'・上次 '+fmt(devLast(d))+'</small>'+assignBadge(d)+wBadge(d,true)+'</div>'+
     '<span class="badge" style="background:'+COLOR[st.k]+'">'+st.t+'</span> <button class="small ok" data-rec="'+d.id+'" style="margin-left:6px">完成保養</button><button class="small sub" data-hist="'+d.id+'" style="margin-left:4px">紀錄</button></div>';
 }
 function navUrl(s){return 'https://maps.google.com/?daddr='+s.lat.toFixed(5)+','+s.lng.toFixed(5)+'&saddr='+ORIGIN.lat.toFixed(5)+','+ORIGIN.lng.toFixed(5);}
@@ -987,9 +1016,11 @@ function genRecs(){
     if(r()<0.18){
       var rules=FIX[m.cat]||[],ru=rules[Math.floor(r()*rules.length)];
       var dt=new Date(prev.getTime()+Math.floor(r()*Math.max(1,(last-prev)/DAY))*DAY);
-      out.push({id:'R'+(n++),devId:d.id,siteId:s.id,date:fmt(dt),type:'故障維修',eng:ENG[1+Math.floor(r()*4)],
+      out.push({id:'R'+(n++),devId:d.id,siteId:s.id,date:fmt(dt),type:'故障維修',eng:r()<0.25?'鄧主管':ENG[1+Math.floor(r()*4)],
         parts:[{n:m.kit[Math.floor(r()*m.kit.length)],q:1}],code:'',note:ru?('客戶反映：'+ru.t+'。處理：'+ru.s[0]+'，測試正常。'):'故障排除完成。',hours:1.5,result:'正常完成',demo:true});ext(out[out.length-1],tv());
     }
+    if(r()<0.03){var rl2=FIX[m.cat]||[],ru2=rl2[Math.floor(r()*rl2.length)];
+      out.push({id:'R'+(n++),devId:d.id,siteId:s.id,date:dayStr(-Math.floor(r()*20)),type:'故障維修',eng:r()<0.3?'鄧主管':ENG[1+Math.floor(r()*4)],parts:[],code:'',note:(ru2?'客戶反映：'+ru2.t+'。':'')+'初步判斷需更換零件，已向原廠訂料，料到後再訪。',hours:1,result:r()<0.6?'待料再訪':'需原廠支援',demo:true});ext(out[out.length-1],tv());}
   });});
   return out;
 }
@@ -1003,8 +1034,8 @@ function devHistory(id){
   var d=devById(id),s=siteOfDev(id);if(!d||!s)return;
   var m=MBYID[d.model]||{model:d.model,brand:'',kit:[]},st=devStatus(d),L=recsOfDev(id);
   var h='<h2>'+esc(m.model)+'　<small class="muted">序號 '+esc(d.sn)+'</small></h2>'+
-    '<p class="muted">'+esc(s.name)+'・'+esc(s.area)+'・'+esc(m.brand)+'<br>上次保養 '+fmt(devLast(d))+'・下次到期 '+fmt(devDue(d))+' <span class="badge" style="background:'+COLOR[st.k]+'">'+st.t+'</span>'+assignBadge(d)+'</p>'+
-    '<div class="row"><button class="ok small" data-recnew="'+id+'|定期保養">＋ 定期保養</button><button class="small" style="background:#c0392b" data-recnew="'+id+'|故障維修">＋ 故障維修</button><button class="small sub" data-recnew="'+id+'|校正">＋ 校正</button></div>'+
+    '<p class="muted">'+esc(s.name)+'・'+esc(s.area)+'・'+esc(m.brand)+'<br>上次保養 '+fmt(devLast(d))+'・下次到期 '+fmt(devDue(d))+' <span class="badge" style="background:'+COLOR[st.k]+'">'+st.t+'</span>'+assignBadge(d)+(function(w){return '<br>購買日 '+(w.buy||'未填')+(w.wm?'・保固 '+w.wm+' 個月（到 '+w.we+'）':'')+(w.ce?'・保養合約到 '+w.ce:'')+(w.age?'・機齡 '+w.age.toFixed(1)+' 年':'');})(wInfo(d))+wBadge(d)+'</p>'+
+    '<div class="row"><button class="ok small" data-recnew="'+id+'|定期保養">＋ 定期保養</button><button class="small" style="background:#c0392b" data-recnew="'+id+'|故障維修">＋ 故障維修</button><button class="small sub" data-recnew="'+id+'|校正">＋ 校正</button><button class="small" style="background:#5b6abf" data-leadnew="'+id+'">＋ 轉商機給業務</button></div>'+
     '<h3 style="margin-top:12px">履歷（'+L.length+' 筆）</h3>';
   if(!L.length)h+='<p class="muted">沒有紀錄。</p>';
   L.forEach(function(x){h+='<div class="site" data-recview="'+x.id+'" style="cursor:pointer"><div class="row"><b class="grow">'+x.date+'　'+esc(x.type)+'</b><span class="badge" style="background:'+(TCOLOR[x.type]||'#5d6b79')+'">'+esc(x.result||'')+'</span></div>'+
@@ -1032,6 +1063,7 @@ function recForm(id,type){
    '<tr><th>工時</th><td><select id="fHours">'+hrs.map(function(v){return '<option'+(v===hv?' selected':'')+'>'+v+'</option>';}).join('')+'</select> 小時</td></tr>'+
    '<tr><th>交通</th><td>里程 <input type="number" id="fKm" min="0" style="width:70px"> 公里　油資 <input type="number" id="fFuel" min="0" style="width:80px"> 元<br>停車 <input type="number" id="fPark" min="0" style="width:80px"> 元　過路 <input type="number" id="fToll" min="0" style="width:70px"> 元'+
      '<div class="muted">輸入里程會自動算油資（每公里 '+COSTCFG.fuelkm+' 元，可改）。同一家醫院保養多台，交通費只要填在其中一筆。</div></td></tr>'+
+   '<tr><th>客戶需求<br><small class="muted">轉給業務</small></th><td><select id="fLeadK"><option value="">— 沒有 —</option>'+LKINDS.map(function(k){return '<option>'+k+'</option>';}).join('')+'</select><input type="text" id="fLeadN" style="width:100%;margin-top:4px" placeholder="客戶提到想加購、汰換、試劑、教育訓練…"></td></tr>'+
    '<tr><th>結果</th><td><select id="fResult">'+RESULTS.map(function(t){return '<option>'+t+'</option>';}).join('')+'</select></td></tr>'+
    '<tr><th>客戶簽名</th><td><canvas id="sig" width="300" height="110" style="border:1px dashed #9aa7b4;border-radius:6px;background:#fff;touch-action:none;max-width:100%"></canvas><br><button class="small sub" id="btnSigClear">清除簽名</button></td></tr></table>'+
    '<div class="note" id="fCost" style="margin-top:8px"></div>'+
@@ -1066,6 +1098,7 @@ function recSave(){
   var date=$('fDate').value||fmt(today());
   if(!parseD(date)){alert('日期格式不對');return;}
   var rec=ext({id:'U'+Date.now(),devId:id,siteId:s.id,date:fmt(parseD(date)),type:$('fType').value,eng:$('fEng').value,code:$('fCode').value.trim(),note:$('fNote').value.trim(),result:$('fResult').value,sig:SIG_DIRTY?$('sig').toDataURL('image/png'):''},readForm());
+  if($('fLeadK').value||$('fLeadN').value.trim()){var lid='L'+Date.now();leads().push({id:lid,date:rec.date,siteId:s.id,devId:id,kind:$('fLeadK').value||'其他',note:$('fLeadN').value.trim(),from:rec.eng,status:'新商機',amount:0});saveLeads();rec.leadId=lid;}
   RECS_USER.push(rec);
   try{LS.set('mt_recs',RECS_USER);}catch(e){}
   if(rec.type==='定期保養'&&rec.result==='正常完成'){var cur=DONE[id];if(!cur||cur<rec.date){DONE[id]=rec.date;LS.set('mt_done',DONE);}}
@@ -1090,6 +1123,7 @@ function recView(rid,fresh){
    '<tr><th>交通</th><td>'+(x.km||0)+' 公里・油資 '+nt(x.fuel)+'・停車 '+nt(x.park)+'・過路 '+nt(x.toll)+'</td></tr>'+
    '<tr><th>成本</th><td>料件 '+nt(c.parts)+' ＋ 人力 '+nt(c.labor)+' ＋ 交通 '+nt(c.travel)+' ＝ <b>'+nt(c.total)+'</b></td></tr>'+
    '<tr><th>結果</th><td>'+esc(x.result||'')+'</td></tr>'+
+   (x.leadId?'<tr><th>轉給業務</th><td>'+leads().filter(function(l){return l.id===x.leadId;}).map(function(l){return esc(l.kind)+'：'+esc(l.note)+'（'+esc(l.status)+'）';}).join('')+'</td></tr>':'')+
    '<tr><th>客戶簽名</th><td>'+(x.sig?'<img src="'+x.sig+'" style="max-width:300px">':'<span class="muted">'+(x.demo?'（示範資料）':'未簽名')+'</span>')+'</td></tr></table>'+
    '<div class="row noprint" style="margin-top:10px"><button class="sub" id="btnRecPrint">🖨 列印／存 PDF</button><button class="sub" data-hist="'+x.devId+'">回設備履歷</button></div>';
   openModal(h,x.siteId);
@@ -1128,6 +1162,156 @@ function initRecs(){
   $('recEng').innerHTML='<option value="">全部工程師</option>'+ENG.map(function(e){return '<option>'+esc(e)+'</option>';}).join('');
   $('recQ').addEventListener('input',renderRecs);['recType','recEng','recRange'].forEach(function(k){$(k).addEventListener('change',renderRecs);});
   $('btnRecCsv').addEventListener('click',recCsv);
+}
+
+/* ================= 保固／合約、業務商機、老闆儀表板 ================= */
+var FEE={'糖化血色素':60000,'免疫分析':80000,'尿液分析':40000,'ELISA':50000,'血液學':70000,'滲透壓':30000};      /* 保養合約年費（示範） */
+var NEWP={'糖化血色素':900000,'免疫分析':1500000,'尿液分析':600000,'ELISA':800000,'血液學':1200000,'滲透壓':400000}; /* 新機價格（示範） */
+var WCOL={'in':'#2e8b57','end':'#e67e22','ctr':'#2a8c8c','cend':'#e67e22','none':'#c0392b','na':'#8a96a3'};
+var WNAME={'in':'保固中','end':'保固 90 天內到期','ctr':'過保・有合約','cend':'合約 60 天內到期','none':'過保・無合約','na':'未填購買日'};
+var WCACHE={};
+function hh(str){var h=7;for(var i=0;i<str.length;i++)h=(h*31+str.charCodeAt(i))%2147483647;return h;}
+function wInfo(d){
+  if(WCACHE[d.id])return WCACHE[d.id];
+  var buy=d.buy?parseD(d.buy):null,wm=+d.wty||0,ce=d.ctr?parseD(d.ctr):null;
+  if(!buy&&IS_DEMO){var r=rng(hh(d.id));buy=new Date(parseD(d.last).getTime()-Math.floor(150+r()*3100)*DAY);wm=r()<0.3?36:24;
+    var we0=addMonths(buy,wm);if(we0<today()&&r()<0.62){ce=new Date(we0.getTime());while(ce<today())ce=addMonths(ce,12);}}
+  var o;
+  if(!buy){o={k:'na',t:'未填購買日'};}
+  else{
+    wm=wm||24;var we=addMonths(buy,wm),dl=Math.round((we-today())/DAY);
+    o={buy:fmt(buy),we:fmt(we),wm:wm,age:(today()-buy)/DAY/365.25,ce:ce?fmt(ce):''};
+    if(dl>90){o.k='in';o.t='保固中（到 '+o.we+'）';}
+    else if(dl>=0){o.k='end';o.t='保固 '+dl+' 天後到期';}
+    else if(ce&&ce>=today()){var cl=Math.round((ce-today())/DAY);if(cl<=60){o.k='cend';o.t='合約 '+cl+' 天後到期';}else{o.k='ctr';o.t='有保養合約（到 '+o.ce+'）';}}
+    else{o.k='none';o.t='過保・無合約';}
+  }
+  WCACHE[d.id]=o;return o;
+}
+function wBadge(d,onlyAlert){var w=wInfo(d);if(onlyAlert&&(w.k==='in'||w.k==='ctr'||w.k==='na'))return '';return ' <span class="badge" style="background:'+WCOL[w.k]+'">'+w.t+'</span>';}
+
+/* ---------- 商機 ---------- */
+var LKINDS=['加購設備','汰換舊機','保養合約','試劑耗材','檢驗項目擴充','教育訓練','其他'];
+var LSTAT=['新商機','業務聯繫中','報價中','成交','未成交'];
+var LSCOL={'新商機':'#c0392b','業務聯繫中':'#e67e22','報價中':'#5b6abf','成交':'#2e8b57','未成交':'#8a96a3'};
+var LEADS=null;
+function genLeads(){
+  var r=rng(9090),out=[],notes=[['加購設備','檢驗科主任詢問有沒有處理量更大的機型，門診量增加'],['試劑耗材','試劑用量變大，想談年度試劑合約價格'],['檢驗項目擴充','想增加 PCT／敗血症相關檢驗項目'],
+    ['教育訓練','新進醫檢師 2 位，希望安排操作與日常保養教育訓練'],['汰換舊機','舊機常故障，院方編明年度預算評估汰換'],['保養合約','過保後想了解保養合約內容與價格'],['加購設備','分院要開檢驗室，想要一台桌上型機種'],['其他','希望報表能直接接 LIS 系統']];
+  for(var i=0;i<16;i++){var s=SITES[Math.floor(r()*SITES.length)],d=s.devices[Math.floor(r()*s.devices.length)],nt0=notes[Math.floor(r()*notes.length)],m=MBYID[d.model]||{};
+    var amt=nt0[0]==='保養合約'?(FEE[m.cat]||50000):nt0[0]==='汰換舊機'||nt0[0]==='加購設備'?(NEWP[m.cat]||800000):nt0[0]==='試劑耗材'?200000+Math.round(r()*8)*50000:nt0[0]==='教育訓練'?0:100000;
+    out.push({id:'L'+i,date:dayStr(-Math.floor(r()*60)),siteId:s.id,devId:d.id,kind:nt0[0],note:nt0[1],from:ENG[1+Math.floor(r()*4)],status:LSTAT[Math.floor(r()*r()*5)],amount:amt,demo:true});}
+  return out;
+}
+function leads(){if(!LEADS){LEADS=LS.get('mt_leads',null);if(!LEADS){LEADS=IS_DEMO?genLeads():[];saveLeads();}}return LEADS;}
+function saveLeads(){LS.set('mt_leads',LEADS);}
+function isOpen(l){return l.status!=='成交'&&l.status!=='未成交';}
+function autoLeads(){
+  var out=[];
+  SITES.forEach(function(s){s.devices.forEach(function(d){var w=wInfo(d),m=MBYID[d.model]||{};
+    if(w.k==='none')out.push({g:'none',kind:'保養合約',siteId:s.id,devId:d.id,why:'過保且沒有保養合約',amount:FEE[m.cat]||50000});
+    else if(w.k==='end')out.push({g:'end',kind:'保養合約',siteId:s.id,devId:d.id,why:w.t+'，提前談保養合約',amount:FEE[m.cat]||50000});
+    else if(w.k==='cend')out.push({g:'cend',kind:'保養合約',siteId:s.id,devId:d.id,why:w.t+'，安排續約',amount:FEE[m.cat]||50000});
+    if(w.age>=8)out.push({g:'old',kind:'汰換舊機',siteId:s.id,devId:d.id,why:'機齡 '+w.age.toFixed(1)+' 年，建議評估汰換',amount:NEWP[m.cat]||800000});
+  });});
+  return out;
+}
+function hasLead(devId,kind){return leads().some(function(l){return l.devId===devId&&l.kind===kind&&isOpen(l);});}
+function leadForm(devId,kind,note,amount){
+  var d=devById(devId),s=siteOfDev(devId);if(!d||!s)return;var m=MBYID[d.model]||{model:d.model};
+  var h='<h2>轉給業務：新增商機</h2><p class="muted">'+esc(s.name)+'・'+esc(m.model)+'・序號 '+esc(d.sn)+wBadge(d)+'</p><table>'+
+    '<tr><th style="width:90px">類型</th><td><select id="lKind">'+LKINDS.map(function(k){return '<option'+(k===kind?' selected':'')+'>'+k+'</option>';}).join('')+'</select></td></tr>'+
+    '<tr><th>客戶需求</th><td><textarea id="lNote" style="min-height:70px;font-family:inherit;font-size:15px" placeholder="例：主任想加購一台處理量更大的機型">'+esc(note||'')+'</textarea></td></tr>'+
+    '<tr><th>預估金額</th><td><input type="number" id="lAmt" min="0" value="'+(amount||'')+'" style="width:140px"> 元（不知道可空白）</td></tr>'+
+    '<tr><th>回報人</th><td><select id="lFrom">'+engOpts(ME)+'<option>系統提醒</option></select></td></tr></table>'+
+    '<div class="row" style="margin-top:10px"><button class="ok" id="btnLeadSave" data-dev="'+devId+'">送出給業務</button><button class="sub" data-hist="'+devId+'">回設備履歷</button></div>';
+  openModal(h,s.id);
+}
+function leadSave(devId){
+  var s=siteOfDev(devId);if(!s)return;
+  leads().push({id:'L'+Date.now(),date:fmt(today()),siteId:s.id,devId:devId,kind:$('lKind').value,note:$('lNote').value.trim(),from:$('lFrom').value,status:'新商機',amount:+$('lAmt').value||0});
+  saveLeads();openModal('<p style="color:#2e8b57"><b>✅ 已送出給業務。</b>業務在「業務商機」分頁會看到這筆。</p><div class="row"><button class="sub" data-hist="'+devId+'">回設備履歷</button></div>',s.id);
+}
+function leadRow(l){
+  var s=siteById(l.siteId),d=devById(l.devId),m=d&&MBYID[d.model];
+  return '<div class="site"><div class="row"><b class="grow">'+esc(s?s.name:'')+'　<span class="badge" style="background:#5d6b79">'+esc(l.kind)+'</span></b>'+
+    '<select class="leadSt" data-id="'+l.id+'">'+LSTAT.map(function(t){return '<option'+(t===l.status?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div>'+
+    '<div>'+esc(l.note||'')+'</div><div class="muted">'+l.date+'・'+esc(l.from||'')+' 回報・'+esc(m?m.model:'')+(d?'・'+esc(d.sn):'')+(l.amount?'・預估 '+nt(l.amount):'')+'</div></div>';
+}
+function renderLeads(){
+  var k=$('ldKind').value,st=$('ldStat').value,L=leads().filter(function(l){return (!k||l.kind===k)&&(!st||(st==='open'?isOpen(l):l.status===st));}).sort(function(a,b){return a.date<b.date?1:-1;});
+  var all=leads(),op=all.filter(isOpen),amt=0,won=0,ms=dayStr(-today().getDate()+1);op.forEach(function(l){amt+=l.amount||0;});all.forEach(function(l){if(l.status==='成交')won+=l.amount||0;});
+  var A=autoLeads();
+  $('ldStats').innerHTML=stat('s-over',op.length,'進行中商機')+stat('s-month',nt(amt),'進行中預估金額')+stat('s-ok',nt(won),'已成交金額')+stat('s-soon',A.length,'系統提醒（保固／合約／機齡）');
+  $('ldList').innerHTML=L.length?L.map(leadRow).join(''):'<p class="muted">沒有符合的商機。</p>';
+  var G=[['none','過保・無保養合約'],['end','保固 90 天內到期'],['cend','保養合約 60 天內到期'],['old','機齡 8 年以上（汰換）']],h='';
+  G.forEach(function(g){var X=A.filter(function(a){return a.g===g[0];}),sum=0;X.forEach(function(a){sum+=a.amount;});
+    h+='<h3>'+g[1]+'（'+X.length+' 台・潛在 '+nt(sum)+'）</h3>';
+    if(!X.length){h+='<p class="muted">無。</p>';return;}
+    h+='<table><tr><th>客戶</th><th>設備</th><th>說明</th><th></th></tr>';
+    X.slice(0,30).forEach(function(a){var s=siteById(a.siteId),d=devById(a.devId),m=MBYID[d.model]||{model:''};
+      h+='<tr><td><a href="#" data-site="'+a.siteId+'">'+esc(s.name)+'</a></td><td>'+esc(m.model)+'<br><small class="muted">'+esc(d.sn)+'</small></td><td>'+esc(a.why)+'<br><small class="muted">預估 '+nt(a.amount)+'</small></td><td>'+
+        (hasLead(a.devId,a.kind)?'<small class="muted">已轉業務</small>':'<button class="small" data-leadauto="'+a.devId+'|'+a.kind+'|'+a.amount+'|'+esc(a.why)+'">轉給業務</button>')+'</td></tr>';});
+    h+='</table>'+(X.length>30?'<p class="muted">只列前 30 台。</p>':'');});
+  $('ldAuto').innerHTML=h;
+}
+function leadsCsv(){
+  var out=['日期,客戶,區域,機型,序號,類型,客戶需求,回報人,狀態,預估金額'];
+  leads().forEach(function(l){var s=siteById(l.siteId),d=devById(l.devId),m=d&&MBYID[d.model];out.push([l.date,s?s.name:'',s?s.area:'',m?m.model:'',d?d.sn:'',l.kind,String(l.note||'').replace(/[\r\n,]/g,' '),l.from,l.status,l.amount||0].join(','));});
+  $('ldCsvBox').classList.remove('hide');$('ldCsv').value=out.join('\n');$('ldCsv').focus();$('ldCsv').select();
+}
+function initLeads(){
+  $('ldKind').innerHTML='<option value="">全部類型</option>'+LKINDS.map(function(k){return '<option>'+k+'</option>';}).join('');
+  $('ldStat').innerHTML='<option value="open">進行中</option><option value="">全部狀態</option>'+LSTAT.map(function(k){return '<option>'+k+'</option>';}).join('');
+  $('ldKind').addEventListener('change',renderLeads);$('ldStat').addEventListener('change',renderLeads);$('btnLdCsv').addEventListener('click',leadsCsv);
+  document.addEventListener('change',function(e){var t=e.target;if(t.className&&t.className.indexOf('leadSt')>=0){var id=t.getAttribute('data-id');leads().forEach(function(l){if(l.id===id)l.status=t.value;});saveLeads();if(CUR==='leads')renderLeads();else if(CUR==='boss')renderBoss();}});
+}
+
+/* ---------- 老闆儀表板 ---------- */
+function bar(label,v,max,txt,col,attr){var w=max?Math.max(2,Math.round(v/max*100)):0;
+  return '<div style="margin:5px 0"'+(attr||'')+'><div class="row" style="font-size:14px"><span class="grow">'+label+'</span><b>'+txt+'</b></div><div style="background:#e8edf2;border-radius:4px;height:10px"><div style="width:'+w+'%;background:'+(col||'#123a5c')+';height:10px;border-radius:4px"></div></div></div>';}
+function renderBoss(){
+  var tot=0,cnt={over:0,soon:0,month:0,ok:0},wk={},siteOver=[],T=today(),ms=fmt(new Date(T.getFullYear(),T.getMonth(),1));
+  SITES.forEach(function(s){var o=0;s.devices.forEach(function(d){tot++;var k=devStatus(d).k;cnt[k]++;if(k==='over')o++;var w=wInfo(d).k;wk[w]=(wk[w]||0)+1;});if(o)siteOver.push({s:s,n:o});});
+  var R=allRecs(),mon=R.filter(function(x){return x.date>=ms;}),pm=0,rp=0,cost=0,hrs=0;
+  mon.forEach(function(x){if(x.type==='定期保養')pm++;if(x.type==='故障維修')rp++;cost+=recCost(x).total;hrs+=x.hours||0;});
+  var op=leads().filter(isOpen),lamt=0;op.forEach(function(l){lamt+=l.amount||0;});
+  var A=autoLeads(),aamt=0;A.forEach(function(a){aamt+=a.amount;});
+  var cf=conflicts().length,ontime=tot?Math.round((tot-cnt.over)/tot*100):0;
+  /* 未結案：最後一筆紀錄不是正常完成 */
+  var lastBy={};R.forEach(function(x){var p=lastBy[x.devId];if(!p||p.date<x.date)lastBy[x.devId]=x;});
+  var openIss=Object.keys(lastBy).map(function(k){return lastBy[k];}).filter(function(x){return x.result&&x.result!=='正常完成';}).sort(function(a,b){return a.date<b.date?-1:1;});
+  $('bossTime').textContent='資料時間 '+fmt(T)+'（示範資料）';
+  $('bossK1').innerHTML=stat('s-ok',tot,'設備總數（'+SITES.length+' 家客戶）')+stat(ontime>=90?'s-ok':ontime>=80?'s-month':'s-over',ontime+'%','保養準時率')+stat('s-over',cnt.over,'逾期未保養')+stat('s-soon',cnt.soon+cnt.month,'30 天內到期');
+  $('bossK2').innerHTML=stat('s-ok',pm,'本月完成保養')+stat('s-over',rp,'本月故障維修')+stat('s-month',nt(cost),'本月保養成本')+stat('s-soon',openIss.length,'未結案（待料／需原廠）');
+  $('bossK3').innerHTML=stat('s-over',wk.none||0,'過保・無合約')+stat('s-month',(wk.end||0)+(wk.cend||0),'保固／合約即將到期')+stat('s-ok',op.length+' 筆',nt(lamt)+' 進行中商機')+stat('s-soon',nt(aamt),'系統提醒潛在商機');
+  /* 工程師工作量（本月） */
+  var ew={};ENG.forEach(function(e){ew[e]={n:0,h:0,a:0};});mon.forEach(function(x){if(ew[x.eng]){ew[x.eng].n++;ew[x.eng].h+=x.hours||0;}});
+  ASSIGN.forEach(function(a){if(ew[a.eng])ew[a.eng].a+=openDevs(a).length;});
+  var mx=0;ENG.forEach(function(e){mx=Math.max(mx,ew[e].n);});
+  $('bossEng').innerHTML=ENG.map(function(e){var o=ew[e];return bar(esc(e),o.n,mx,o.n+' 筆・'+o.h.toFixed(1)+' 小時・待辦 '+o.a+' 台','#123a5c');}).join('')+(cf?'<p style="color:#c0392b"><b>⚠ 有 '+cf+' 台設備被重複派工</b>，請鄧主管到「工程師排程」處理。</p>':'<p class="muted">沒有重複派工。</p>');
+  /* 近 6 個月 */
+  var months=[],h='';for(var i=5;i>=0;i--){var d0=new Date(T.getFullYear(),T.getMonth()-i,1);months.push({k:fmt(d0).slice(0,7),pm:0,rp:0,c:0});}
+  R.forEach(function(x){months.forEach(function(m){if(x.date.slice(0,7)===m.k){if(x.type==='定期保養')m.pm++;else if(x.type==='故障維修')m.rp++;m.c+=recCost(x).total;}});});
+  var mc=0,mn=0;months.forEach(function(m){mc=Math.max(mc,m.c);mn=Math.max(mn,m.pm+m.rp);});
+  h='<div style="display:-webkit-flex;display:flex;-webkit-align-items:flex-end;align-items:flex-end;height:150px;border-bottom:1px solid #c5ced8">';
+  months.forEach(function(m){var hp=mn?Math.round(m.pm/mn*130):0,hr=mn?Math.round(m.rp/mn*130):0;
+    h+='<div style="-webkit-flex:1;flex:1;text-align:center;font-size:12px"><div>'+(m.pm+m.rp)+'</div><div style="margin:0 auto;width:60%;background:#c0392b;height:'+hr+'px"></div><div style="margin:0 auto;width:60%;background:#2e8b57;height:'+hp+'px"></div></div>';});
+  h+='</div><div style="display:-webkit-flex;display:flex">'+months.map(function(m){return '<div style="-webkit-flex:1;flex:1;text-align:center;font-size:12px">'+m.k.slice(5)+' 月<br><span class="muted">'+nt(m.c)+'</span></div>';}).join('')+'</div><p class="muted">綠：定期保養　紅：故障維修　下方為當月成本</p>';
+  $('bossTrend').innerHTML=h;
+  /* 逾期最多的客戶 */
+  siteOver.sort(function(a,b){return b.n-a.n;});var so=siteOver.slice(0,8),smx=so.length?so[0].n:0;
+  $('bossOver').innerHTML=so.length?so.map(function(x){return bar('<a href="#" data-site="'+x.s.id+'">'+esc(x.s.name)+'</a> <small class="muted">'+esc(x.s.area)+'</small>',x.n,smx,x.n+' 台','#c0392b');}).join(''):'<p class="muted">沒有逾期設備。</p>';
+  /* 保固分布 */
+  var ks=['in','end','ctr','cend','none','na'],wmx=0;ks.forEach(function(k){wmx=Math.max(wmx,wk[k]||0);});
+  $('bossWty').innerHTML=ks.filter(function(k){return wk[k];}).map(function(k){return bar(WNAME[k],wk[k],wmx,wk[k]+' 台',WCOL[k]);}).join('');
+  /* 商機 */
+  var bk={},bmx=0;op.forEach(function(l){bk[l.kind]=(bk[l.kind]||0)+(l.amount||0);});Object.keys(bk).forEach(function(k){bmx=Math.max(bmx,bk[k]);});
+  $('bossLead').innerHTML=(Object.keys(bk).length?Object.keys(bk).sort(function(a,b){return bk[b]-bk[a];}).map(function(k){return bar(esc(k),bk[k],bmx,nt(bk[k]),'#5b6abf');}).join(''):'<p class="muted">沒有進行中商機。</p>')+
+    '<p><a href="#" data-gotab="leads">看全部商機 →</a></p>';
+  /* 未結案 */
+  $('bossIss').innerHTML=openIss.length?'<table><tr><th>日期</th><th>客戶／設備</th><th>狀態</th></tr>'+openIss.slice(0,10).map(function(x){var s=siteById(x.siteId),d=devById(x.devId),m=d&&MBYID[d.model];
+    return '<tr data-recview="'+x.id+'" style="cursor:pointer"><td>'+x.date.slice(5)+'</td><td>'+esc(s?s.name:'')+'<br><small class="muted">'+esc(m?m.model:'')+'・'+esc(x.eng)+'</small></td><td><span class="badge" style="background:#e67e22">'+esc(x.result)+'</span></td></tr>';}).join('')+'</table>':'<p class="muted">沒有未結案的維修。</p>';
 }
 
 /* ---------- 成本分析 ---------- */
@@ -1182,17 +1366,17 @@ function doImport(){
     var lat=parseFloat(c[3]),lng=parseFloat(c[4]);
     if(c.length<8||isNaN(lat)||isNaN(lng)||!MBYID[c[5]]||!parseD(c[7])){bad++;return;}
     var key=c[0];if(!map[key])map[key]={id:'S'+Object.keys(map).length,name:c[0],type:c[1],area:c[2],lat:lat,lng:lng,devices:[]};
-    map[key].devices.push({id:'I'+(ok++),model:c[5],sn:c[6],last:fmt(parseD(c[7]))});
+    var dv={id:'I'+(ok++),model:c[5],sn:c[6],last:fmt(parseD(c[7]))};if(c[8]&&parseD(c[8]))dv.buy=fmt(parseD(c[8]));if(+c[9])dv.wty=+c[9];if(c[10]&&parseD(c[10]))dv.ctr=fmt(parseD(c[10]));map[key].devices.push(dv);
   });
   var arr=Object.keys(map).map(function(k){return map[k];});
   if(!arr.length){$('importMsg').textContent='沒有可用的資料列（'+bad+' 列格式不對）。';return;}
-  SITES=arr;IS_DEMO=false;DONE={};DEMO_RECS=null;ASSIGN=[];saveAssign();LS.set('mt_sites',SITES);LS.set('mt_done',DONE);
+  SITES=arr;IS_DEMO=false;DONE={};DEMO_RECS=null;WCACHE={};LEADS=[];saveLeads();ASSIGN=[];saveAssign();LS.set('mt_sites',SITES);LS.set('mt_done',DONE);
   $('importMsg').textContent='已匯入 '+arr.length+' 個客戶、'+ok+' 台設備'+(bad?'，略過 '+bad+' 列格式不對的資料':'')+'。';
   summary();refresh();
 }
 function doExport(){
-  var out=['客戶名稱,類型,區域,緯度,經度,機型代碼,序號,上次保養日'];
-  SITES.forEach(function(s){s.devices.forEach(function(d){out.push([s.name,s.type,s.area,s.lat.toFixed(5),s.lng.toFixed(5),d.model,d.sn,fmt(devLast(d))].join(','));});});
+  var out=['客戶名稱,類型,區域,緯度,經度,機型代碼,序號,上次保養日,購買日,保固月數,保養合約到期日'];
+  SITES.forEach(function(s){s.devices.forEach(function(d){out.push([s.name,s.type,s.area,s.lat.toFixed(5),s.lng.toFixed(5),d.model,d.sn,fmt(devLast(d))].concat((function(w){return [w.buy||'',w.wm||'',w.ce||''];})(wInfo(d))).join(','));});});
   $('csvBox').value=out.join('\n');
 }
 
@@ -1201,7 +1385,7 @@ function showSite(id){
   var s=null;SITES.forEach(function(x){if(x.id===id)s=x;});if(!s)return;
   var h='<h2>'+esc(s.name)+'</h2><p class="muted">'+esc(s.type)+'・'+esc(s.area)+'・距離 '+km(ORIGIN.lat,ORIGIN.lng,s.lat,s.lng).toFixed(1)+' km・<a href="'+navUrl(s)+'" target="_blank">導航</a></p>';
   s.devices.slice().sort(function(a,b){return devStatus(a).days-devStatus(b).days;}).forEach(function(d){h+=devRow(d)+'<div class="muted" style="padding-left:4px">下次到期 '+fmt(devDue(d))+'</div>';});
-  h+='<div class="panel" style="background:#f4f6f9;margin-top:10px"><b>主管派工</b><div class="row" style="margin-top:6px"><select id="mEng">'+engOpts(ENG[1])+'</select><select id="mDate"></select>'+
+  h+='<div class="panel" style="background:#f4f6f9;margin-top:10px"><b>主管派工（鄧主管）</b><div class="row" style="margin-top:6px"><select id="mEng">'+engOpts(ENG[1])+'</select><select id="mDate"></select>'+
     '<button class="ok small" data-assignsite="'+id+'">派這家 30 天內要保養的設備</button></div><div id="mMsg" class="muted"></div></div>';
   openModal(h,id);fillDateSel($('mDate'));
 }
@@ -1210,9 +1394,9 @@ function openModal(h,sid){$('modalBox').innerHTML=h+'<div style="text-align:righ
 
 /* ---------- 切頁與事件 ---------- */
 var CUR='near';
-function show(tab){CUR=tab;['near','team','route','recs','cost','parts','catalog','fix','data'].forEach(function(t){$('tab-'+t).classList[t===tab?'remove':'add']('hide');});
+function show(tab){CUR=tab;['near','boss','team','route','recs','cost','leads','parts','catalog','fix','data'].forEach(function(t){$('tab-'+t).classList[t===tab?'remove':'add']('hide');});
   var as=$('nav').getElementsByTagName('a');for(var i=0;i<as.length;i++)as[i].className=as[i].getAttribute('data-tab')===tab?'on':'';refresh();window.scrollTo(0,0);}
-function refresh(){if(CUR==='team')renderTeam();else if(CUR==='near')renderNear();else if(CUR==='route')renderRoute();else if(CUR==='recs')renderRecs();else if(CUR==='cost')renderCost();else if(CUR==='parts'){buildRoute();renderParts();}else if(CUR==='catalog')renderCatalog();else if(CUR==='data')summary();}
+function refresh(){if(CUR==='team')renderTeam();else if(CUR==='near')renderNear();else if(CUR==='route')renderRoute();else if(CUR==='recs')renderRecs();else if(CUR==='cost')renderCost();else if(CUR==='leads')renderLeads();else if(CUR==='boss')renderBoss();else if(CUR==='parts'){buildRoute();renderParts();}else if(CUR==='catalog')renderCatalog();else if(CUR==='data')summary();}
 
 function init(){
   $('selBase').innerHTML=BASES.map(function(b,i){return '<option value="'+i+'">'+esc(b.n)+'</option>';}).join('');
@@ -1254,10 +1438,10 @@ function init(){
       function(err){$('geoMsg').textContent='無法取得位置（'+(err.code===1?'未允許定位':'訊號不足')+'），請改選出發據點。';},{enableHighAccuracy:true,timeout:15000,maximumAge:60000});
   });
   $('catQ').addEventListener('input',renderCatalog);$('catCat').addEventListener('change',renderCatalog);
-  initFix();initRecs();initCost();
+  initFix();initRecs();initCost();initLeads();
   $('btnImport').addEventListener('click',doImport);$('btnExport').addEventListener('click',doExport);
-  $('btnSample').addEventListener('click',function(){$('csvBox').value='客戶名稱,類型,區域,緯度,經度,機型代碼,序號,上次保養日\n範例醫院,區域醫院,台北市中山區,25.0640,121.5330,HA8180,HA810001,2026-08-15\n範例醫院,區域醫院,台北市中山區,25.0640,121.5330,VIDAS30,VID20002,2026-06-01\n範例診所,診所,新北市板橋區,25.0115,121.4627,PCA1C,PCA30003,2026-01-10';});
-  $('btnReset').addEventListener('click',function(){try{localStorage.removeItem('mt_sites');localStorage.removeItem('mt_done');}catch(e){}SITES=genDemo();IS_DEMO=true;DONE={};DEMO_RECS=null;try{localStorage.removeItem('mt_assign');}catch(e){}ASSIGN=genAssign();$('importMsg').textContent='已恢復示範資料。';summary();refresh();});
+  $('btnSample').addEventListener('click',function(){$('csvBox').value='客戶名稱,類型,區域,緯度,經度,機型代碼,序號,上次保養日,購買日,保固月數,保養合約到期日\n範例醫院,區域醫院,台北市中山區,25.0640,121.5330,HA8180,HA810001,2026-08-15,2023-03-01,24,2027-03-01\n範例醫院,區域醫院,台北市中山區,25.0640,121.5330,VIDAS30,VID20002,2026-06-01,2025-05-10,36,\n範例診所,診所,新北市板橋區,25.0115,121.4627,PCA1C,PCA30003,2026-01-10,2017-09-20,24,';});
+  $('btnReset').addEventListener('click',function(){try{localStorage.removeItem('mt_sites');localStorage.removeItem('mt_done');}catch(e){}SITES=genDemo();IS_DEMO=true;DONE={};DEMO_RECS=null;WCACHE={};LEADS=null;try{localStorage.removeItem('mt_leads');}catch(e){}try{localStorage.removeItem('mt_assign');}catch(e){}ASSIGN=genAssign();$('importMsg').textContent='已恢復示範資料。';summary();refresh();});
   document.addEventListener('click',function(e){
     var t=e.target;
     while(t&&t!==document){
@@ -1267,6 +1451,10 @@ function init(){
         if(t.getAttribute('data-recview')){e.preventDefault();recView(t.getAttribute('data-recview'));return;}
         if(t.getAttribute('data-recnew')){e.preventDefault();var pr2=t.getAttribute('data-recnew').split('|');recForm(pr2[0],pr2[1]);return;}
         if(t.id==='btnRecSave'){recSave();return;}
+        if(t.getAttribute('data-leadnew')){e.preventDefault();leadForm(t.getAttribute('data-leadnew'),'其他','',0);return;}
+        if(t.id==='btnLeadSave'){leadSave(t.getAttribute('data-dev'));return;}
+        if(t.getAttribute('data-leadauto')){e.preventDefault();var la=t.getAttribute('data-leadauto').split('|');leadForm(la[0],la[1],'系統提醒：'+la[3],+la[2]);return;}
+        if(t.getAttribute('data-gotab')){e.preventDefault();show(t.getAttribute('data-gotab'));return;}
         if(t.id==='btnSigClear'){sigClear();return;}
         if(t.id==='btnRecPrint'){window.print();return;}
         if(t.getAttribute('data-done')){e.preventDefault();markDone(t.getAttribute('data-done'));return;}
