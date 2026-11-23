@@ -57,6 +57,7 @@ th{background:#f4f6f9;font-weight:600}
 #modal{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:10;overflow-y:auto;-webkit-overflow-scrolling:touch}
 #modal .box{background:#fff;max-width:640px;margin:40px auto;border-radius:10px;padding:16px}
 h2{font-size:18px;margin:0 0 10px 0}
+mark{background:#ffe58a;padding:0 1px}
 </style>
 </head>
 <body>
@@ -160,31 +161,49 @@ h2{font-size:18px;margin:0 0 10px 0}
 <!-- 故障排除 -->
 <section id="tab-fix" class="hide">
   <div class="panel">
-    <h2>故障排除助手</h2>
+    <h2>故障排除：拍照 OCR ＋ 查原廠手冊</h2>
     <div class="row"><span>機型</span><select id="fixModel" class="grow"></select></div>
-    <div class="row" style="margin-top:6px"><span>故障碼</span><input type="text" id="fixCode" class="grow" placeholder="螢幕上的錯誤碼或訊息，例：E-102、Pressure High"></div>
-    <div class="row" style="margin-top:6px"><textarea id="fixQ" style="min-height:70px;font-family:inherit;font-size:16px" placeholder="客戶怎麼描述問題？例如：壓力一直跳高、結果偏低、讀不到條碼"></textarea></div>
     <div class="row" style="margin-top:6px">
-      <button class="sub" id="btnMic">🎤 語音輸入</button>
-      <label class="btn sub" for="filePhoto">📷 拍照／選照片</label>
+      <label class="btn" for="filePhoto">📷 拍照讀文字（OCR）</label>
       <input type="file" id="filePhoto" accept="image/*" capture="environment" style="display:none">
-      <select id="photoKind"><option value="screen">照片是：螢幕錯誤碼</option><option value="inside">照片是：機器內部</option><option value="other">照片是：其他</option></select>
-      <button id="btnFix">🔍 查詢</button>
+      <button class="sub" id="btnMic">🎤 語音輸入</button>
+      <span id="ocrMsg" class="muted"></span>
     </div>
-    <div id="micMsg" class="muted"></div>
-    <div id="photoBox" class="hide" style="margin-top:8px"><img id="photoImg" style="max-width:100%;max-height:260px;border-radius:8px;border:1px solid #dde3ea"><br><button class="small sub" id="btnPhotoDel">移除照片</button></div>
-    <div class="note" style="margin-top:8px">查詢順序：① 本機<b>案例庫</b>（以前修好存下來的）→ ② 依儀器原理的<b>通用檢查方向</b> → ③ 有設定 AI 金鑰時，把照片、故障碼、描述交給 <b>AI 判讀</b>。實際步驟一律以原廠 Service Manual 為準。正式版會把原廠手冊放進公司內部知識庫，AI 只根據手冊回答並附頁碼。</div>
+    <div id="photoBox" class="hide" style="margin-top:8px"><img id="photoImg" style="max-width:100%;max-height:220px;border-radius:8px;border:1px solid #dde3ea"><br><button class="small sub" id="btnPhotoDel">移除照片</button></div>
+    <div class="row" style="margin-top:6px"><span>故障碼</span><input type="text" id="fixCode" class="grow" placeholder="OCR 會自動填入，也可手動輸入，例：E-102"></div>
+    <div class="row" style="margin-top:6px"><textarea id="fixQ" style="min-height:80px;font-family:inherit;font-size:16px" placeholder="OCR 讀到的文字、或客戶描述（例：壓力一直跳高）"></textarea></div>
+    <div class="row" style="margin-top:6px"><button id="btnFix">🔍 查手冊</button><span id="micMsg" class="muted"></span></div>
     <div id="fixOut"></div>
   </div>
+
   <div class="panel">
-    <h2>AI 設定</h2>
-    <p class="muted">AI 判讀照片要用 Anthropic API 金鑰（費用由金鑰帳戶支付，一次查詢約新台幣 1～3 元）。金鑰只存在這台裝置的瀏覽器裡，不會放進網頁程式碼。照片若拍到病人姓名或病歷號，請先裁掉。</p>
-    <div class="row"><input type="text" id="aiKey" class="grow" placeholder="sk-ant-…" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="sub" id="btnKeySave">儲存</button><button class="sub" id="btnKeyDel">清除</button></div>
-    <p id="aiKeyMsg" class="muted"></p>
+    <h2>手冊庫（<span id="manCount">0</span> 本）</h2>
+    <p class="muted">匯入原廠 Service Manual（PDF 或文字檔），手冊只存在這台裝置，不會上傳。PDF 需要有文字層（掃描檔要先轉成可搜尋 PDF）。</p>
+    <div class="row">
+      <span>適用機型</span><select id="manModel"></select>
+      <label class="btn sub" for="fileManual">📄 匯入手冊（PDF／TXT）</label>
+      <input type="file" id="fileManual" accept=".pdf,.txt,.md,application/pdf,text/plain" style="display:none">
+      <button class="sub" id="btnDemoManual">載入示範手冊（虛構）</button>
+    </div>
+    <p id="manMsg" class="muted"></p>
+    <div id="manList"></div>
   </div>
+
+  <div class="panel">
+    <h2>地端模型設定（選用）</h2>
+    <p class="muted">沒設定也能用：OCR 與手冊搜尋都在手機本機完成。設定後，會把「手冊找到的段落＋OCR 文字＋描述」交給模型整理成檢修步驟，並標出依據頁碼。</p>
+    <div class="row"><span>類型</span><select id="aiType"><option value="ollama">Ollama</option><option value="openai">OpenAI 相容（vLLM、LM Studio…）</option></select></div>
+    <div class="row" style="margin-top:6px"><span>伺服器</span><input type="text" id="aiUrl" class="grow" placeholder="https://ai.公司內網:11434" autocapitalize="off" spellcheck="false"></div>
+    <div class="row" style="margin-top:6px"><span>模型</span><input type="text" id="aiModel" class="grow" placeholder="例：qwen2.5vl:7b、llama3.1:8b" autocapitalize="off" spellcheck="false">
+      <label><input type="checkbox" id="aiVision" class="chk"> 模型看得懂圖片（一併送照片）</label></div>
+    <div class="row" style="margin-top:6px"><button class="sub" id="btnAiSave">儲存</button><button class="sub" id="btnAiTest">測試連線</button></div>
+    <p id="aiMsg" class="muted"></p>
+    <p class="muted">注意：這個網頁是 https，瀏覽器不允許它連到 http 的內網伺服器。正式版建議把 App 也放在公司內網同一台伺服器上；Ollama 要設定 OLLAMA_ORIGINS 允許這個網址。</p>
+  </div>
+
   <div class="panel">
     <h2>案例庫（<span id="caseCount">0</span> 筆）</h2>
-    <p class="muted">每次修好按「存成案例」，下次同樣症狀或故障碼會先跳出來。正式版會存到公司伺服器，全組共用。</p>
+    <p class="muted">修好按「存成案例」，下次同樣故障碼或症狀會先跳出來。</p>
     <div id="caseList"></div>
   </div>
 </section>
@@ -568,118 +587,319 @@ var FIX={
  '血液學':[{k:['推片','厚','染色','不均'],t:'推片／染色不良',s:['檢查推片刀片是否磨損','確認染液效期與液位','清潔染色槽']}],
  'ELISA':[{k:['洗','殘留','吸光','不準'],t:'洗盤或讀值異常',s:['檢查洗盤頭是否堵塞','跑濾光片檢查盤','確認孵育溫度']}]
 };
+/* ================= 故障排除：OCR ＋ 手冊搜尋 ＋ 地端模型 ================= */
 var PHOTO=null; /* base64 jpeg（不含前綴） */
 var CASES=LS.get('mt_cases',[]);
 var LAST_AI='';
-function words(s){return String(s||'').toLowerCase().replace(/[，。、,.;；:：!！?？()（）\/]/g,' ').split(/\s+/).filter(function(w){return w.length>=2;});}
-function caseHits(mid,code,q){
-  var out=[],cw=String(code||'').toLowerCase().replace(/\s/g,''),qs=String(q||'').toLowerCase();
-  CASES.forEach(function(c,i){
-    var sc=0;
-    if(cw&&c.code&&c.code.toLowerCase().replace(/\s/g,'')===cw)sc+=5;
-    words(c.symptom).forEach(function(w){if(qs.indexOf(w)>=0)sc+=1;});
-    if(qs&&c.symptom&&String(c.symptom).toLowerCase().indexOf(qs)>=0)sc+=2;
-    if(sc>0){if(c.model===mid)sc+=2;out.push({c:c,i:i,sc:sc});}
-  });
-  out.sort(function(a,b){return b.sc-a.sc;});return out.slice(0,5);
+var MANUALS=[]; /* {id,name,model,pages:[{p,text}]} ，存在 IndexedDB */
+
+/* ---------- IndexedDB（手冊太大，不能放 localStorage） ---------- */
+var IDB=null;
+function idbOpen(cb){
+  if(IDB)return cb(IDB);
+  if(!window.indexedDB)return cb(null);
+  var rq;try{rq=indexedDB.open('pm_manuals',1);}catch(e){return cb(null);}
+  rq.onupgradeneeded=function(){rq.result.createObjectStore('m',{keyPath:'id'});};
+  rq.onsuccess=function(){IDB=rq.result;cb(IDB);};
+  rq.onerror=function(){cb(null);};
 }
-function renderFix(){
-  var mid=$('fixModel').value,m=MBYID[mid],q=$('fixQ').value.trim(),ql=q.toLowerCase(),code=$('fixCode').value.trim(),rules=FIX[m.cat]||[],hits=[];
-  var h='<h2 style="margin-top:12px">'+esc(m.model)+'（'+esc(m.principle)+'）</h2>';
-  /* ① 案例庫 */
-  var ch=caseHits(mid,code,q);
-  if(ch.length){h+='<h3>① 案例庫：以前類似的狀況</h3>';ch.forEach(function(x){h+=caseCard(x.c,x.i);});}
-  /* ② 通用方向 */
-  rules.forEach(function(r){var sc=0;r.k.forEach(function(k){if(ql&&ql.indexOf(k.toLowerCase())>=0)sc++;});if(sc||!ql)hits.push({r:r,sc:sc});});
-  hits.sort(function(a,b){return b.sc-a.sc;});
-  h+='<h3>② 通用檢查方向</h3>';
-  if(!hits.length)h+='<p class="muted">沒有對到常見問題，建議用 AI 判讀或查原廠手冊。</p>';
-  hits.forEach(function(x,i){h+='<div class="site"><b>'+(i+1)+'. '+esc(x.r.t)+'</b><ol>'+x.r.s.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ol></div>';});
-  /* ③ AI */
-  h+='<h3>③ AI 判讀</h3><div id="aiOut">'+(getKey()?'<p class="muted">AI 判讀中…（約 10～40 秒）</p>':'<p class="muted">尚未設定 AI 金鑰（在下方「AI 設定」）。設定後可判讀照片中的錯誤碼、部件與異常。</p>')+'</div>';
-  h+='<div class="row" style="margin-top:6px"><button class="ok" id="btnSaveCase">💾 修好了，存成案例</button></div>';
-  $('fixOut').innerHTML=h;
-  if(getKey()&&(q||code||PHOTO))askAI(m,code,q);
-  else if(getKey())$('aiOut').innerHTML='<p class="muted">請先輸入描述、故障碼或拍一張照片。</p>';
+function idbAll(cb){idbOpen(function(db){if(!db)return cb([]);var out=[],t=db.transaction('m','readonly').objectStore('m').openCursor();t.onsuccess=function(e){var c=e.target.result;if(c){out.push(c.value);c['continue']();}else cb(out);};t.onerror=function(){cb(out);};});}
+function idbPut(m,cb){idbOpen(function(db){if(!db){cb&&cb(false);return;}var tx=db.transaction('m','readwrite');tx.objectStore('m').put(m);tx.oncomplete=function(){cb&&cb(true);};tx.onerror=function(){cb&&cb(false);};});}
+function idbDel(id,cb){idbOpen(function(db){if(!db){cb&&cb();return;}var tx=db.transaction('m','readwrite');tx.objectStore('m')['delete'](id);tx.oncomplete=function(){cb&&cb();};});}
+
+/* ---------- 外部函式庫（需要時才載入；iPad 4 等舊瀏覽器可能不支援） ---------- */
+var LIBS={};
+function loadScript(url,test,cb){
+  if(test())return cb(true);
+  if(LIBS[url]){LIBS[url].push(cb);return;}
+  LIBS[url]=[cb];
+  var s=document.createElement('script');s.src=url;
+  s.onload=function(){var L=LIBS[url];LIBS[url]=null;L.forEach(function(f){f(test());});};
+  s.onerror=function(){var L=LIBS[url];LIBS[url]=null;L.forEach(function(f){f(false);});};
+  document.head.appendChild(s);
 }
-function caseCard(c,i){
-  var m=MBYID[c.model]||{model:c.model};
-  return '<div class="site"><b>'+esc(m.model)+(c.code?'｜故障碼 '+esc(c.code):'')+'</b> <span class="muted">'+esc(c.date)+'</span>'+
-    '<div class="muted">症狀：'+esc(c.symptom||'')+'</div><div style="white-space:pre-wrap;margin-top:4px">'+esc(c.fix||'')+'</div>'+
-    (c.thumb?'<img src="data:image/jpeg;base64,'+c.thumb+'" style="max-width:160px;margin-top:4px;border-radius:6px">':'')+
-    '<div><button class="small sub" data-delcase="'+i+'">刪除</button></div></div>';
-}
-function renderCases(){$('caseCount').textContent=CASES.length;$('caseList').innerHTML=CASES.length?CASES.map(caseCard).reverse().join(''):'<p class="muted">還沒有案例。</p>';}
-function saveCase(){
-  var fix=prompt('怎麼修好的？（例：更換線上濾芯後壓力恢復正常）\n留空會存 AI 的建議。','');
-  if(fix===null)return;
-  var c={model:$('fixModel').value,code:$('fixCode').value.trim(),symptom:$('fixQ').value.trim(),fix:fix||LAST_AI.slice(0,400),date:fmt(today()),thumb:''};
-  function done(){CASES.push(c);LS.set('mt_cases',CASES);renderCases();alert('已存成案例。');}
-  if(PHOTO){shrink('data:image/jpeg;base64,'+PHOTO,240,0.6,function(b){c.thumb=b;done();});}else done();
-}
-/* 照片：縮到最長邊 1280 */
+var TESS_URL='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+var PDF_URL='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+var PDF_WORKER='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+/* ---------- 照片與 OCR ---------- */
 function shrink(src,max,q,cb){
   var img=new Image();
   img.onload=function(){var w=img.width,h=img.height,s=Math.min(1,max/Math.max(w,h));var cv=document.createElement('canvas');cv.width=Math.round(w*s);cv.height=Math.round(h*s);
     cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);cb(cv.toDataURL('image/jpeg',q).split(',')[1]);};
   img.onerror=function(){cb(null);};img.src=src;
 }
-function onPhoto(e){
-  var f=e.target.files&&e.target.files[0];if(!f)return;
-  var rd=new FileReader();
-  rd.onload=function(){shrink(rd.result,1280,0.82,function(b){if(!b){alert('照片讀取失敗');return;}PHOTO=b;$('photoImg').src='data:image/jpeg;base64,'+b;$('photoBox').classList.remove('hide');});};
-  rd.readAsDataURL(f);e.target.value='';
+function findCodes(txt){
+  var m=String(txt).toUpperCase().match(/\b[A-Z]{1,3}[-\s]?\d{2,5}\b/g)||[];
+  var seen={},out=[];m.forEach(function(c){c=c.replace(/\s/,'-');if(!seen[c]){seen[c]=1;out.push(c);}});return out;
 }
-/* 語音 */
+function onPhoto(e){
+  var f=e.target.files&&e.target.files[0];if(!f)return;e.target.value='';
+  var rd=new FileReader();
+  rd.onload=function(){shrink(rd.result,1600,0.9,function(b){
+    if(!b){$('ocrMsg').textContent='照片讀取失敗';return;}
+    PHOTO=b;$('photoImg').src='data:image/jpeg;base64,'+b;$('photoBox').classList.remove('hide');
+    runOCR('data:image/jpeg;base64,'+b);
+  });};
+  rd.readAsDataURL(f);
+}
+function runOCR(src){
+  $('ocrMsg').textContent='OCR 載入中…（第一次約需下載 5 MB）';
+  loadScript(TESS_URL,function(){return !!window.Tesseract;},function(ok){
+    if(!ok||!window.Tesseract||!window.WebAssembly){$('ocrMsg').innerHTML='這台裝置的瀏覽器跑不動本機 OCR（iPad 4 等舊機型）。請看照片手動輸入故障碼，或改用較新的手機。';return;}
+    $('ocrMsg').textContent='辨識中…';
+    window.Tesseract.recognize(src,'eng',{logger:function(m){if(m.status==='recognizing text')$('ocrMsg').textContent='辨識中… '+Math.round(m.progress*100)+'%';}})
+      .then(function(r){
+        var txt=((r&&r.data&&r.data.text)||'').replace(/\n{2,}/g,'\n').trim();
+        var codes=findCodes(txt);
+        if(codes.length&&!$('fixCode').value)$('fixCode').value=codes[0];
+        $('fixQ').value=($('fixQ').value?$('fixQ').value+'\n':'')+txt;
+        $('ocrMsg').textContent=txt?('OCR 完成'+(codes.length?'，找到疑似故障碼：'+codes.join('、'):'')+'。可修改後按「查手冊」。'):'沒有讀到文字，請拍近一點、避免反光。';
+        if(txt)renderFix();
+      })['catch'](function(err){$('ocrMsg').textContent='OCR 失敗：'+(err&&err.message||err);});
+  });
+}
+
+/* ---------- 語音 ---------- */
 var REC=null;
 function initMic(){
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){$('btnMic').addEventListener('click',function(){$('micMsg').innerHTML='這台裝置的瀏覽器不支援網頁語音辨識。請點描述框，再按<b>鍵盤上的麥克風 🎤</b>用聽寫輸入（iPad／iPhone 都有）。';$('fixQ').focus();});return;}
+  if(!SR){$('btnMic').addEventListener('click',function(){$('micMsg').innerHTML='這個瀏覽器不支援網頁語音辨識，請點描述框後用<b>鍵盤上的麥克風 🎤</b>聽寫。';$('fixQ').focus();});return;}
   $('btnMic').addEventListener('click',function(){
     if(REC){REC.stop();return;}
     REC=new SR();REC.lang='zh-TW';REC.interimResults=true;REC.continuous=false;
     var base=$('fixQ').value?$('fixQ').value+' ':'';
     REC.onresult=function(ev){var t='';for(var i=0;i<ev.results.length;i++)t+=ev.results[i][0].transcript;$('fixQ').value=base+t;};
-    REC.onerror=function(ev){$('micMsg').textContent='語音辨識失敗（'+ev.error+'），可改用鍵盤上的麥克風聽寫。';};
+    REC.onerror=function(ev){$('micMsg').textContent='語音辨識失敗（'+ev.error+'），可改用鍵盤上的麥克風。';};
     REC.onend=function(){REC=null;$('btnMic').textContent='🎤 語音輸入';$('micMsg').textContent='';};
-    REC.start();$('btnMic').textContent='⏹ 停止';$('micMsg').textContent='請說話…（例如：客戶說壓力一直跳高）';
+    REC.start();$('btnMic').textContent='⏹ 停止';$('micMsg').textContent='請說話…';
   });
 }
-/* AI（Anthropic Messages API） */
-function getKey(){return LS.get('mt_aikey','');}
-var SYS='你是醫療檢驗儀器（IVD）的現場維修助理，協助醫兆設備工程師在醫院檢驗科排除故障。用繁體中文回答，精簡、條列，工程師在現場用手機看。\n'+
- '回答格式：\n【照片判讀】看到什麼（錯誤碼、訊息原文、部件名稱與狀態、異常跡象）；沒有照片就省略。\n【可能原因】依可能性排序，最多 4 項。\n【檢查步驟】由簡到繁、先不拆機的步驟，每步一行。\n【可能需要的料件】\n【注意】生物安全（先消毒、戴手套）與何時該停手聯絡原廠。\n'+
- '規則：你手上沒有原廠 Service Manual，錯誤碼的正式定義如果照片或訊息裡沒寫，就明講「需對照原廠手冊確認」，不要編造錯誤碼意義或料號。照片中若出現病人姓名、病歷號等個資，不要轉述。';
-function askAI(m,code,q){
-  var kind=$('photoKind').value,content=[];
-  if(PHOTO)content.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:PHOTO}});
-  var t='機型：'+m.brand+' '+m.model+'（'+m.type+'，原理：'+m.principle+'）\n';
-  if(code)t+='故障碼／螢幕訊息：'+code+'\n';
-  if(q)t+='客戶描述：'+q+'\n';
-  if(PHOTO)t+='附上的照片是：'+({screen:'儀器螢幕（請讀出錯誤碼與訊息）',inside:'機器內部（請辨認部件並找異常，例如漏液、結晶、磨損、氣泡、鬆脫）',other:'現場照片'})[kind]+'\n';
-  t+='請協助排除。';
-  content.push({type:'text',text:t});
-  var body={model:'claude-opus-5-5',max_tokens:4000,output_config:{effort:'medium'},fallbacks:'default',system:SYS,messages:[{role:'user',content:content}]};
+
+/* ---------- 手冊匯入 ---------- */
+function splitTextPages(txt){
+  /* 文字檔：遇到「--- 第 N 頁 ---」或換頁符號就分頁；否則每 1500 字一段 */
+  var parts=txt.split(/\f|\n-{2,}\s*(?:第\s*)?(?:p\.?|page|頁)?\s*\d+\s*(?:頁)?\s*-{2,}\n/i),out=[];
+  if(parts.length>1){parts.forEach(function(t,i){if(t.trim())out.push({p:i+1,text:t.trim()});});return out;}
+  for(var i=0,n=1;i<txt.length;i+=1500,n++)out.push({p:n,text:txt.substr(i,1500)});
+  return out;
+}
+function importManual(e){
+  var f=e.target.files&&e.target.files[0];if(!f)return;e.target.value='';
+  var model=$('manModel').value,name=f.name.replace(/\.[^.]+$/,'');
+  if(/\.pdf$/i.test(f.name)||f.type==='application/pdf'){
+    $('manMsg').textContent='讀取 PDF 中…';
+    loadScript(PDF_URL,function(){return !!window.pdfjsLib;},function(ok){
+      if(!ok){$('manMsg').textContent='這台裝置的瀏覽器無法讀 PDF（舊機型），請在電腦上匯入，或先轉成文字檔。';return;}
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc=PDF_WORKER;
+      var rd=new FileReader();
+      rd.onload=function(){
+        window.pdfjsLib.getDocument({data:new Uint8Array(rd.result)}).promise.then(function(pdf){
+          var pages=[],i=1;
+          function next(){
+            if(i>pdf.numPages){
+              var chars=pages.reduce(function(s,p){return s+p.text.length;},0);
+              if(chars<pdf.numPages*20){$('manMsg').textContent='這份 PDF 幾乎沒有文字（可能是掃描檔），請先轉成可搜尋 PDF。';return;}
+              saveManual(name,model,pages);return;
+            }
+            pdf.getPage(i).then(function(pg){return pg.getTextContent();}).then(function(tc){
+              pages.push({p:i,text:tc.items.map(function(it){return it.str;}).join(' ').replace(/\s+/g,' ').trim()});
+              $('manMsg').textContent='讀取 PDF 中… '+i+'/'+pdf.numPages+' 頁';i++;next();
+            })['catch'](function(err){$('manMsg').textContent='第 '+i+' 頁讀取失敗：'+err;});
+          }
+          next();
+        })['catch'](function(err){$('manMsg').textContent='PDF 開啟失敗：'+(err&&err.message||err);});
+      };
+      rd.readAsArrayBuffer(f);
+    });
+  }else{
+    var rd=new FileReader();
+    rd.onload=function(){saveManual(name,model,splitTextPages(String(rd.result)));};
+    rd.readAsText(f,'utf-8');
+  }
+}
+function saveManual(name,model,pages){
+  var m={id:'M'+Date.now(),name:name,model:model,pages:pages,date:fmt(today())};
+  idbPut(m,function(ok){
+    if(!ok){MANUALS.push(m);$('manMsg').textContent='已匯入「'+name+'」'+pages.length+' 頁（這台裝置無法永久保存，重新整理後會消失）。';}
+    else{MANUALS.push(m);$('manMsg').textContent='已匯入「'+name+'」，共 '+pages.length+' 頁。';}
+    renderManuals();
+  });
+}
+function renderManuals(){
+  $('manCount').textContent=MANUALS.length;
+  $('manList').innerHTML=MANUALS.length?'<table><tr><th>手冊</th><th>適用機型</th><th>頁數</th><th></th></tr>'+MANUALS.map(function(m){
+    var mm=MBYID[m.model];return '<tr><td>'+esc(m.name)+'</td><td>'+esc(mm?mm.model:'所有機型')+'</td><td>'+m.pages.length+'</td><td><button class="small sub" data-delman="'+m.id+'">刪除</button></td></tr>';}).join('')+'</table>':'<p class="muted">還沒有手冊。</p>';
+}
+var DEMO_MANUAL=[
+ '【示範手冊・虛構內容，非任何原廠資料】DEMO-HPLC 醣化血色素分析儀 維修手冊\n本文件僅供展示 App 的手冊搜尋功能，所有錯誤碼、數值、步驟皆為虛構。',
+ '第 3 章 錯誤碼一覽\nE-101 泵浦壓力過高（Pressure High）：壓力超過上限。請見 3-2 節。\nE-102 泵浦壓力過低（Pressure Low）：可能漏液或吸入空氣。請見 3-3 節。\nE-201 管柱溫度異常（Column Temp Error）：請見 3-4 節。\nE-305 吸樣針液面偵測失敗（Level Sense Error）：請見 3-5 節。',
+ '3-2 E-101 泵浦壓力過高\n1. 先停止分析，記錄目前壓力值。\n2. 檢查線上濾芯（In-line Filter）是否變色或堵塞，必要時更換。\n3. 拆下管柱，以旁通管連接後重新加壓：壓力恢復正常表示管柱堵塞，需更換管柱。\n4. 檢查各管路是否彎折、接頭是否有緩衝液結晶。\n5. 以上皆正常仍無法排除，請聯絡原廠技術支援。',
+ '3-3 E-102 泵浦壓力過低\n1. 確認溶劑瓶液量足夠，吸液管濾頭浸在液面下。\n2. 檢查泵浦頭與各接頭有無滲漏，泵浦密封圈（Pump Seal）磨損需更換。\n3. 執行 Purge 排除管路氣泡。\n4. 檢查除氣裝置是否正常運作。',
+ '3-4 E-201 管柱溫度異常\n1. 確認室溫在 15–30 °C。\n2. 檢查管柱恆溫箱門是否關緊。\n3. 以溫度計量測恆溫箱溫度，與設定值差距過大時更換溫控模組。',
+ '3-5 E-305 吸樣針液面偵測失敗\n1. 確認檢體量足夠、檢體管無氣泡或泡沫。\n2. 以酒精棉清潔吸樣針外壁。\n3. 檢查吸樣針是否彎曲，接地線是否鬆脫。\n生物安全：處理吸樣針前務必戴手套並消毒。',
+ '第 5 章 定期保養（每 3 個月）\n更換項目：線上濾芯、泵浦密封圈（每 6 個月）、管柱（依測試次數）。\n保養後請執行校正並跑兩階品管液確認。'
+];
+function loadDemoManual(){
+  var exist=MANUALS.some(function(m){return m.demo;});
+  if(exist){$('manMsg').textContent='示範手冊已經在手冊庫了。';return;}
+  var m={id:'MDEMO',name:'DEMO-HPLC 維修手冊（虛構示範）',model:'_any',demo:true,date:fmt(today()),pages:DEMO_MANUAL.map(function(t,i){return {p:i+1,text:t};})};
+  idbPut(m,function(){MANUALS.push(m);renderManuals();$('manMsg').textContent='已載入示範手冊（內容是虛構的，用來展示查詢流程）。可以拍一張寫著「E-101」的紙或螢幕試試。';});
+}
+
+/* ---------- 手冊搜尋（關鍵字＋故障碼加權） ---------- */
+function qTokens(q){
+  var s=String(q||'').toLowerCase(),out=[];
+  (s.match(/[a-z]{1,3}[-\s]?\d{2,5}/g)||[]).forEach(function(c){out.push({t:c.replace(/[\s-]/g,''),w:8,code:true});});
+  (s.match(/[a-z][a-z0-9]{2,}/g)||[]).forEach(function(w){out.push({t:w,w:2});});
+  (s.match(/[\u4e00-\u9fff]+/g)||[]).forEach(function(seg){for(var i=0;i<seg.length-1;i++)out.push({t:seg.substr(i,2),w:1});});
+  var seen={};return out.filter(function(x){if(seen[x.t])return false;seen[x.t]=1;return true;});
+}
+function searchManuals(mid,q){
+  var toks=qTokens(q),hits=[];if(!toks.length)return hits;
+  MANUALS.forEach(function(m){
+    if(m.model!=='_any'&&m.model!==mid)return;
+    m.pages.forEach(function(pg){
+      var low=pg.text.toLowerCase(),norm=low.replace(/[\s-]/g,''),sc=0,first=-1;
+      toks.forEach(function(x){
+        var hay=x.code?norm:low,i=hay.indexOf(x.t),n=0;
+        while(i>=0&&n<5){n++;i=hay.indexOf(x.t,i+1);}
+        if(n){sc+=x.w*(1+Math.log(n));if(first<0&&!x.code)first=low.indexOf(x.t);if(x.code&&first<0){var r=new RegExp(x.t.replace(/(\d)/,'[\\s-]?$1'),'i'),mm=low.match(r);if(mm)first=mm.index;}}
+      });
+      if(sc>0)hits.push({m:m,pg:pg,sc:sc,at:first});
+    });
+  });
+  hits.sort(function(a,b){return b.sc-a.sc;});return hits.slice(0,5);
+}
+function snippet(text,at,q){
+  var st=Math.max(0,(at<0?0:at)-60),s=text.substr(st,420);
+  var h=esc(s);
+  qTokens(q).forEach(function(x){if(x.t.length<2)return;var re=x.code?new RegExp('('+x.t.replace(/^([a-z]+)(\d+)$/i,'$1[\\s-]?$2')+')','ig'):new RegExp('('+x.t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig');h=h.replace(re,'<mark>$1</mark>');});
+  return (st>0?'…':'')+h+(st+420<text.length?'…':'');
+}
+
+/* ---------- 案例庫 ---------- */
+function words(s){return String(s||'').toLowerCase().replace(/[，。、,.;；:：!！?？()（）\/]/g,' ').split(/\s+/).filter(function(w){return w.length>=2;});}
+function caseHits(mid,code,q){
+  var out=[],cw=String(code||'').toLowerCase().replace(/[\s-]/g,''),qs=String(q||'').toLowerCase();
+  CASES.forEach(function(c,i){
+    var sc=0;
+    if(cw&&c.code&&c.code.toLowerCase().replace(/[\s-]/g,'')===cw)sc+=5;
+    words(c.symptom).forEach(function(w){if(qs.indexOf(w)>=0)sc+=1;});
+    if(sc>0){if(c.model===mid)sc+=2;out.push({c:c,i:i,sc:sc});}
+  });
+  out.sort(function(a,b){return b.sc-a.sc;});return out.slice(0,5);
+}
+function caseCard(c,i){
+  var m=MBYID[c.model]||{model:c.model};
+  return '<div class="site"><b>'+esc(m.model)+(c.code?'｜故障碼 '+esc(c.code):'')+'</b> <span class="muted">'+esc(c.date)+'</span>'+
+    '<div class="muted">症狀：'+esc(String(c.symptom||'').slice(0,120))+'</div><div style="white-space:pre-wrap;margin-top:4px">'+esc(c.fix||'')+'</div>'+
+    (c.ref?'<div class="muted">依據：'+esc(c.ref)+'</div>':'')+
+    (c.thumb?'<img src="data:image/jpeg;base64,'+c.thumb+'" style="max-width:160px;margin-top:4px;border-radius:6px">':'')+
+    '<div><button class="small sub" data-delcase="'+i+'">刪除</button></div></div>';
+}
+function renderCases(){$('caseCount').textContent=CASES.length;$('caseList').innerHTML=CASES.length?CASES.map(caseCard).reverse().join(''):'<p class="muted">還沒有案例。</p>';}
+var LAST_REF='';
+function saveCase(){
+  var fix=prompt('怎麼修好的？（例：依手冊 3-2 更換線上濾芯後壓力恢復正常）','');
+  if(fix===null)return;
+  var c={model:$('fixModel').value,code:$('fixCode').value.trim(),symptom:$('fixQ').value.trim(),fix:fix||LAST_AI.slice(0,400),ref:LAST_REF,date:fmt(today()),thumb:''};
+  function done(){CASES.push(c);LS.set('mt_cases',CASES);renderCases();alert('已存成案例。');}
+  if(PHOTO){shrink('data:image/jpeg;base64,'+PHOTO,240,0.6,function(b){c.thumb=b||'';done();});}else done();
+}
+
+/* ---------- 查詢 ---------- */
+function renderFix(){
+  var mid=$('fixModel').value,m=MBYID[mid],q=$('fixQ').value.trim(),code=$('fixCode').value.trim(),all=(code+' '+q).trim();
+  var h='<h2 style="margin-top:12px">'+esc(m.model)+'</h2>';
+  if(!all){$('fixOut').innerHTML=h+'<p class="muted">請先拍照、輸入故障碼或描述。</p>';return;}
+  /* ① 手冊 */
+  var mh=searchManuals(mid,all);
+  h+='<h3>① 原廠手冊</h3>';
+  if(!MANUALS.length)h+='<p class="muted">手冊庫是空的。到下方「手冊庫」匯入原廠手冊，或先載入示範手冊。</p>';
+  else if(!mh.length)h+='<p class="muted">手冊裡沒有找到相關內容，試著換個關鍵字（英文錯誤訊息通常最準）。</p>';
+  mh.forEach(function(x,i){h+='<div class="site"><b>'+(i+1)+'. '+esc(x.m.name)+'　第 '+x.pg.p+' 頁</b><div style="margin-top:4px;line-height:1.6;white-space:pre-wrap">'+snippet(x.pg.text,x.at,all)+'</div><button class="small sub" data-page="'+x.m.id+'|'+x.pg.p+'">看整頁</button></div>';});
+  LAST_REF=mh.length?mh[0].m.name+' 第 '+mh[0].pg.p+' 頁':'';
+  /* ② 案例 */
+  var ch=caseHits(mid,code,q);
+  if(ch.length){h+='<h3>② 案例庫</h3>';ch.forEach(function(x){h+=caseCard(x.c,x.i);});}
+  /* ③ 通用方向（手冊沒找到時才顯示） */
+  if(!mh.length){
+    var rules=FIX[m.cat]||[],ql=all.toLowerCase(),hits=[];
+    rules.forEach(function(r){var sc=0;r.k.forEach(function(k){if(ql.indexOf(k.toLowerCase())>=0)sc++;});if(sc)hits.push({r:r,sc:sc});});
+    hits.sort(function(a,b){return b.sc-a.sc;});
+    if(hits.length){h+='<h3>③ 通用檢查方向（依儀器原理，非原廠內容）</h3>';hits.forEach(function(x,i){h+='<div class="site"><b>'+(i+1)+'. '+esc(x.r.t)+'</b><ol>'+x.r.s.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ol></div>';});}
+  }
+  /* ④ 地端模型 */
+  var ai=LS.get('mt_ai',null);
+  h+='<h3>④ 地端模型整理</h3><div id="aiOut">'+(ai&&ai.url?'<p class="muted">模型整理中…</p>':'<p class="muted">尚未設定地端模型（下方「地端模型設定」）。上面的手冊段落已經可以直接照做。</p>')+'</div>';
+  h+='<div class="row" style="margin-top:6px"><button class="ok" id="btnSaveCase">💾 修好了，存成案例</button></div>';
+  $('fixOut').innerHTML=h;
+  if(ai&&ai.url)askLocal(ai,m,code,q,mh);
+}
+function showPage(mid,p){
+  var m=null;MANUALS.forEach(function(x){if(x.id===mid)m=x;});if(!m)return;
+  var pg=null;m.pages.forEach(function(x){if(String(x.p)===String(p))pg=x;});if(!pg)return;
+  openModal('<h2>'+esc(m.name)+'　第 '+pg.p+' 頁</h2><div style="white-space:pre-wrap;line-height:1.7">'+esc(pg.text)+'</div>');
+}
+
+/* ---------- 地端模型（Ollama / OpenAI 相容） ---------- */
+var SYS='你是醫療檢驗儀器（IVD）的現場維修助理。用繁體中文、條列、精簡回答，工程師在現場用手機看。\n'+
+ '只根據使用者提供的「手冊段落」回答，每個步驟後面標出依據，例如（手冊名 第 N 頁）。手冊段落沒有寫到的內容，明講「手冊沒有寫，需聯絡原廠確認」，不要自行編造錯誤碼意義、數值或料號。\n'+
+ '格式：【判讀】OCR 文字與故障碼代表什麼；【檢查步驟】由簡到繁；【需要的料件】；【注意】生物安全與何時停手聯絡原廠。';
+function askLocal(ai,m,code,q,mh){
+  var ctx=mh.length?mh.map(function(x){return '【'+x.m.name+' 第 '+x.pg.p+' 頁】\n'+x.pg.text.slice(0,1500);}).join('\n\n'):'（手冊沒有找到相關段落）';
+  var user='機型：'+m.brand+' '+m.model+'\n故障碼：'+(code||'（無）')+'\nOCR 文字／客戶描述：'+(q||'（無）')+'\n\n手冊段落：\n'+ctx;
+  var url=ai.url.replace(/\/+$/,''),body,path;
+  if(ai.type==='openai'){
+    var uc=[{type:'text',text:user}];
+    if(ai.vision&&PHOTO)uc.push({type:'image_url',image_url:{url:'data:image/jpeg;base64,'+PHOTO}});
+    path='/v1/chat/completions';body={model:ai.model,messages:[{role:'system',content:SYS},{role:'user',content:ai.vision&&PHOTO?uc:user}],stream:false};
+  }else{
+    var um={role:'user',content:user};if(ai.vision&&PHOTO)um.images=[PHOTO];
+    path='/api/chat';body={model:ai.model,messages:[{role:'system',content:SYS},um],stream:false};
+  }
   var x=new XMLHttpRequest();
-  x.open('POST','https://api.anthropic.com/v1/messages',true);
-  x.setRequestHeader('content-type','application/json');
-  x.setRequestHeader('x-api-key',getKey());
-  x.setRequestHeader('anthropic-version','2026-10-21');
-  x.setRequestHeader('anthropic-beta','server-side-fallback-2026-07-01');
-  x.setRequestHeader('anthropic-dangerous-direct-browser-access','true');
-  x.timeout=120000;
+  x.open('POST',url+path,true);x.setRequestHeader('content-type','application/json');x.timeout=180000;
   x.onload=function(){
     var r=null;try{r=JSON.parse(x.responseText);}catch(e){}
-    if(x.status!==200||!r){var msg=r&&r.error?r.error.message:('HTTP '+x.status);$('aiOut').innerHTML='<p style="color:#c0392b">AI 查詢失敗：'+esc(msg)+(x.status===401?'（金鑰錯誤）':'')+'</p>';return;}
-    if(r.stop_reason==='refusal'){$('aiOut').innerHTML='<p class="muted">AI 這次無法回答，請改用文字描述再試一次。</p>';return;}
-    var txt=(r.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('\n').trim();
-    LAST_AI=txt;
-    $('aiOut').innerHTML='<div class="site" style="white-space:pre-wrap;line-height:1.6">'+esc(txt||'（沒有內容）')+'</div><div class="muted">AI 回答僅供參考，以原廠手冊為準。</div>';
+    if(x.status!==200||!r){$('aiOut').innerHTML='<p style="color:#c0392b">模型回應錯誤（HTTP '+x.status+'）：'+esc((r&&r.error&&(r.error.message||r.error))||x.responseText.slice(0,200))+'</p>';return;}
+    var txt=ai.type==='openai'?(r.choices&&r.choices[0]&&r.choices[0].message&&r.choices[0].message.content):(r.message&&r.message.content);
+    LAST_AI=String(txt||'').trim();
+    $('aiOut').innerHTML='<div class="site" style="white-space:pre-wrap;line-height:1.6">'+esc(LAST_AI||'（沒有內容）')+'</div><div class="muted">模型回答僅供參考，以手冊原文為準。</div>';
   };
-  x.onerror=function(){$('aiOut').innerHTML='<p style="color:#c0392b">連線失敗，請確認網路。</p>';};
-  x.ontimeout=function(){$('aiOut').innerHTML='<p style="color:#c0392b">AI 回應逾時，請再試一次。</p>';};
+  x.onerror=function(){$('aiOut').innerHTML='<p style="color:#c0392b">連不到模型伺服器。常見原因：網址錯誤、不在公司網路、伺服器是 http（https 網頁不能連 http）、或伺服器沒開放跨網域（Ollama 要設 OLLAMA_ORIGINS）。</p>';};
+  x.ontimeout=function(){$('aiOut').innerHTML='<p style="color:#c0392b">模型回應逾時。</p>';};
   x.send(JSON.stringify(body));
 }
+function aiTest(){
+  var ai=readAiForm();if(!ai.url){$('aiMsg').textContent='請先填伺服器網址。';return;}
+  var x=new XMLHttpRequest(),u=ai.url.replace(/\/+$/,'')+(ai.type==='openai'?'/v1/models':'/api/tags');
+  x.open('GET',u,true);x.timeout=10000;
+  x.onload=function(){if(x.status!==200){$('aiMsg').textContent='伺服器回應 HTTP '+x.status;return;}var r={};try{r=JSON.parse(x.responseText);}catch(e){}
+    var names=ai.type==='openai'?((r.data||[]).map(function(m){return m.id;})):((r.models||[]).map(function(m){return m.name;}));
+    $('aiMsg').textContent='連線成功。伺服器上的模型：'+(names.join('、')||'（沒有）');};
+  x.onerror=function(){$('aiMsg').textContent='連不到伺服器（網址、網路、https/http 或跨網域設定）。';};
+  x.ontimeout=function(){$('aiMsg').textContent='連線逾時。';};
+  x.send();
+}
+function readAiForm(){return {type:$('aiType').value,url:$('aiUrl').value.trim(),model:$('aiModel').value.trim(),vision:$('aiVision').checked};}
+
+function initFix(){
+  $('manModel').innerHTML='<option value="_any">所有機型</option>'+MODELS.map(function(m){return '<option value="'+m.id+'">'+esc(m.model)+'</option>';}).join('');
+  $('btnFix').addEventListener('click',renderFix);
+  $('filePhoto').addEventListener('change',onPhoto);
+  $('fileManual').addEventListener('change',importManual);
+  $('btnDemoManual').addEventListener('click',loadDemoManual);
+  $('btnPhotoDel').addEventListener('click',function(){PHOTO=null;$('photoBox').classList.add('hide');});
+  var ai=LS.get('mt_ai',null);
+  if(ai){$('aiType').value=ai.type;$('aiUrl').value=ai.url;$('aiModel').value=ai.model;$('aiVision').checked=!!ai.vision;$('aiMsg').textContent='已設定。';}
+  $('btnAiSave').addEventListener('click',function(){var a=readAiForm();if(!a.url){try{localStorage.removeItem('mt_ai');}catch(e){}$('aiMsg').textContent='已清除設定。';return;}if(!a.model){$('aiMsg').textContent='請填模型名稱。';return;}LS.set('mt_ai',a);$('aiMsg').textContent='已儲存。';});
+  $('btnAiTest').addEventListener('click',aiTest);
+  initMic();renderCases();
+  idbAll(function(list){MANUALS=list;renderManuals();});
+}
+
 
 /* ---------- 資料匯入匯出 ---------- */
 function summary(){var n=0;SITES.forEach(function(s){n+=s.devices.length;});$('dataSummary').innerHTML='目前：<b>'+SITES.length+'</b> 個客戶、<b>'+n+'</b> 台設備（'+(IS_DEMO?'示範資料':'已匯入的資料')+'）';}
@@ -763,14 +983,7 @@ function init(){
       function(err){$('geoMsg').textContent='無法取得位置（'+(err.code===1?'未允許定位':'訊號不足')+'），請改選出發據點。';},{enableHighAccuracy:true,timeout:15000,maximumAge:60000});
   });
   $('catQ').addEventListener('input',renderCatalog);$('catCat').addEventListener('change',renderCatalog);
-  $('btnFix').addEventListener('click',renderFix);
-  $('filePhoto').addEventListener('change',onPhoto);
-  $('btnPhotoDel').addEventListener('click',function(){PHOTO=null;$('photoBox').classList.add('hide');});
-  $('aiKey').value=getKey()?'（已儲存）':'';
-  $('aiKeyMsg').textContent=getKey()?'已設定 AI 金鑰。':'尚未設定。';
-  $('btnKeySave').addEventListener('click',function(){var k=$('aiKey').value.trim();if(k.indexOf('sk-ant-')!==0){$('aiKeyMsg').textContent='金鑰格式不對（應該以 sk-ant- 開頭）。';return;}LS.set('mt_aikey',k);$('aiKey').value='（已儲存）';$('aiKeyMsg').textContent='已設定 AI 金鑰。';});
-  $('btnKeyDel').addEventListener('click',function(){try{localStorage.removeItem('mt_aikey');}catch(e){}$('aiKey').value='';$('aiKeyMsg').textContent='已清除。';});
-  initMic();renderCases();
+  initFix();
   $('btnImport').addEventListener('click',doImport);$('btnExport').addEventListener('click',doExport);
   $('btnSample').addEventListener('click',function(){$('csvBox').value='客戶名稱,類型,區域,緯度,經度,機型代碼,序號,上次保養日\n範例醫院,區域醫院,台北市中山區,25.0640,121.5330,HA8180,HA810001,2026-08-15\n範例醫院,區域醫院,台北市中山區,25.0640,121.5330,VIDAS30,VID20002,2026-06-01\n範例診所,診所,新北市板橋區,25.0115,121.4627,PCA1C,PCA30003,2026-01-10';});
   $('btnReset').addEventListener('click',function(){try{localStorage.removeItem('mt_sites');localStorage.removeItem('mt_done');}catch(e){}SITES=genDemo();IS_DEMO=true;DONE={};try{localStorage.removeItem('mt_assign');}catch(e){}ASSIGN=genAssign();$('importMsg').textContent='已恢復示範資料。';summary();refresh();});
@@ -782,6 +995,8 @@ function init(){
         if(t.getAttribute('data-site')&&t.id!=='modal'){e.preventDefault();var sid=t.getAttribute('data-site');showSite(sid);$('modal').setAttribute('data-site',sid);return;}
         if(t.getAttribute('data-where')){e.preventDefault();showWhere(t.getAttribute('data-where'));return;}
         if(t.id==='btnSaveCase'){saveCase();return;}
+        if(t.getAttribute('data-page')){var pp=t.getAttribute('data-page').split('|');showPage(pp[0],pp[1]);return;}
+        if(t.getAttribute('data-delman')){var dm=t.getAttribute('data-delman');if(confirm('刪除這本手冊？')){idbDel(dm,function(){MANUALS=MANUALS.filter(function(m){return m.id!==dm;});renderManuals();});}return;}
         if(t.getAttribute('data-assignsite')){var sid2=t.getAttribute('data-assignsite'),st=siteById(sid2);
           var ids=st.devices.filter(function(d){return devStatus(d).k!=='ok';}).map(function(d){return d.id;});
           if(!ids.length){$('mMsg').textContent='這家目前沒有 30 天內要保養的設備。';return;}
